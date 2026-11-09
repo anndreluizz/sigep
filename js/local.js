@@ -1,9 +1,9 @@
 // Modo demonstração: imita o pedaço do supabase-js que o app usa, rodando o MESMO banco
 // (supabase/migrations) num Postgres dentro do navegador (PGlite). As regras (RLS) valem igual.
 // Serve para testar as telas sem conta no Supabase. Os dados somem ao recarregar a página.
-// ponytail: só o subconjunto do supabase-js que app.js usa (select/eq/in/gte/lt/order/range/insert/update/delete/rpc).
+// ponytail: só o subconjunto do supabase-js que app.js usa (select/eq/in/gte/lt/lte/order/range/insert/update/delete/rpc).
 
-const MIGRACOES = ['20261109000000_inicial.sql']
+const MIGRACOES = ['20261109000000_inicial.sql', '20261110000000_justificativas.sql']
 
 const AUTH_SUPABASE = `
   create schema auth; create table auth.users (id uuid primary key, email text unique, senha text);
@@ -68,6 +68,7 @@ async function criarClienteLocal(PGlite, lerMigracao) {
       in(c, v) { st.filtros.push([ident(c), 'in', v]); return b },
       gte(c, v) { st.filtros.push([ident(c), '>=', v]); return b },
       lt(c, v) { st.filtros.push([ident(c), '<', v]); return b },
+      lte(c, v) { st.filtros.push([ident(c), '<=', v]); return b },
       range(de, ate) { st.faixa = [Number(de), Number(ate)]; return b },
       order(c, o = {}) { st.ordem.push([ident(c), o.ascending !== false]); return b },
       then(ok, falha) { return resultado(exec).then(ok, falha) },

@@ -22,15 +22,16 @@ Roda o banco num Postgres de verdade (PGlite) e tenta o uso certo e o indevido c
 ## Quem pode o quê
 | Perfil | Pode | Não pode |
 |---|---|---|
-| RH | Cadastrar e desligar servidores, setores, turnos, escalas e feriados; gerar convites; ajustar batidas (sempre com motivo); fechar e reabrir o mês | Apagar o histórico |
-| Prefeito | Ver todos os setores, servidores e batidas | Alterar qualquer coisa |
-| Chefe de setor | Ver a equipe e as batidas do seu setor | Ver outros setores; cadastrar; ajustar batidas |
-| Servidor | Ver o próprio cadastro, batidas e histórico | Ver colegas; bater ponto pelo celular |
+| RH | Cadastrar e desligar servidores, setores, turnos, escalas e feriados; gerar convites; ajustar batidas (sempre com motivo); decidir e lançar justificativas de qualquer setor; fechar e reabrir o mês | Apagar o histórico |
+| Prefeito | Ver todos os setores, servidores, batidas, espelhos e justificativas | Alterar qualquer coisa |
+| Chefe de setor | Ver a equipe, as batidas e o espelho do seu setor; aprovar/recusar pedidos e lançar abonos do seu setor | Ver outros setores; cadastrar; ajustar batidas direto |
+| Servidor | Ver o próprio cadastro, espelho e histórico; pedir justificativa ("esqueci de bater", atestado, etc.) e desistir enquanto ninguém respondeu | Ver colegas; bater ponto pelo celular; aprovar o próprio pedido |
 | Totem | Registrar entrada e saída dos servidores do seu setor (`registrar_batida`) | Ler qualquer dado |
 
 - CPF, telefone e o código do crachá só o RH vê (`dados_pessoais`).
 - Servidor desligado, em férias ou afastado: o crachá para de funcionar em todos os totens na hora.
-- Mês fechado não aceita batida nova, alteração nem exclusão.
+- Mês fechado não aceita batida nova, alteração nem exclusão, nem justificativa.
+- Justificativa: pedido do servidor fica "em análise"; lançada pela chefia ou RH já nasce aprovada. "Esqueci de bater" aprovado vira batida de ajuste; abono aprovado tira falta e atraso dos dias no espelho.
 - Toda mudança em servidores, batidas e perfis vai para o `historico` (quem, quando, antes e depois).
 
 As regras ficam no banco, não no app: mesmo alguém mexendo no navegador não consegue burlá-las.

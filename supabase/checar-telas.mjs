@@ -169,6 +169,36 @@ for (const email of ['rh@demo', 'chefe@demo', 'prefeito@demo', 'servidor@demo'])
   }
 }
 
+// ---------- justificativas: servidora pede, chefe decide, espelho muda ----------
+const ANA = '40000000-0000-4000-8000-000000000001', CARLOS = '40000000-0000-4000-8000-000000000002'
+const decidir = (id, aprovar, resposta = '') => run(`executar(() => FORMS.decidir(${JSON.stringify({campos: [['resposta', resposta]], dataset: {id}})}, {submitter: {value: '${aprovar ? 1 : 0}'}}))`)
+await entrar('servidor@demo'); run(`S.mes = '2026-08'; S.aba = 'ponto'; S.jtipo = 'atestado'`); await run('executar(async () => {})')
+ok(tela().includes('Pedir justificativa') && tela().includes('Entregue o atestado'), 'servidora: formulário de pedido')
+await form('justificativa', [['tipo', 'atestado'], ['inicio', '2026-08-04'], ['fim', '2026-08-05'], ['motivo', 'Consulta e repouso']], ANA)
+ok(msg()?.[1]?.includes('Pedido enviado') && tela().includes('Em análise'), 'servidora envia atestado: ' + msg()?.[1])
+run(`S.jtipo = 'batida'; render()`); ok(tela().includes('Hora em que chegou'), 'esqueci de bater: pede dia e hora')
+await form('justificativa', [['tipo', 'batida'], ['dia', '2026-08-06'], ['hora', '07:00'], ['batida_tipo', 'entrada'], ['motivo', 'Totem estava sem bateria']], ANA)
+await form('justificativa', [['tipo', 'abono'], ['inicio', '2026-08-07'], ['fim', '2026-08-07'], ['motivo', 'Pedido que vou retirar']], ANA)
+ok(run(`S.pedidos.filter(j => j.status === 'pendente').length`) === 3 && tela().includes('Desistir'), 'três pedidos em análise, com botão de desistir')
+await acao('desistir', {id: run(`S.pedidos.find(j => j.tipo === 'abono').id`)}); ok(run('S.pedidos.length') === 2, 'servidora desiste de um pedido')
+ok(tela().includes('Pedido em análise'), 'espelho avisa do pedido em análise')
+await form('justificativa', [['tipo', 'abono'], ['inicio', '2026-08-01'], ['fim', '2026-08-01'], ['motivo', 'Pedido pelo colega']], CARLOS)
+ok(msg()?.[0] === 'erro', 'servidora não pede pelo colega: ' + msg()?.[1])
+
+await entrar('chefe@demo'); run(`S.mes = '2026-08'; S.aba = 'pedidos'; S.msg = null; render()`)
+ok(tela().includes('Esperando resposta <small>2') && els['#tabs'].innerHTML.includes('pill amber">2'), 'chefe: 2 pedidos esperando, com aviso na aba')
+await decidir(run(`S.pedidos.find(j => j.tipo === 'batida').id`), true, 'Confirmado com a portaria')
+await decidir(run(`S.pedidos.find(j => j.tipo === 'atestado').id`), true)
+ok(msg()?.[1] === 'Pedido aprovado.' && tela().includes('Esperando resposta <small>0') && tela().includes('Confirmado com a portaria'), 'chefe aprova os dois')
+run(`S.aba = 'espelho'; S.esp = '${ANA}'`); await run('executar(async () => {})')
+const totAna = run(`espelhoMes(S.d.servidores.find(s => s.id === '${ANA}'), S.bat, '2026-08', {...S.d, justificativas: S.just}, hoje()).tot`)
+ok(tela().includes('Atestado médico') && tela().includes('✎') && totAna.faltas === 16 && totAna.pendencias === 1, `espelho: atestado abona 2 dias e a batida aprovada aparece com ✎ (${totAna.faltas} faltas, ${totAna.pendencias} pendência)`)
+ok(tela().includes('Lançar justificativa'), 'chefe pode lançar pelo espelho')
+await form('justificativa', [['tipo', 'ferias'], ['inicio', '2026-08-10'], ['fim', '2026-08-14'], ['motivo', 'Férias regulamentares']], CARLOS)
+ok(msg()?.[1] === 'Justificativa lançada e aprovada.', 'chefe lança férias já aprovadas: ' + msg()?.[1])
+await entrar('prefeito@demo'); run(`S.mes = '2026-08'; S.aba = 'espelho'; S.esp = '${ANA}'`); await run('executar(async () => {})')
+ok(tela().includes('Ana Paula') && !tela().includes('Lançar justificativa') && !tela().includes('Pedir justificativa'), 'Prefeito só olha o espelho')
+
 // batidas de exemplo da demo.html: o SQL roda e o mês passado tem espelho com ocorrências
 await run('semearBatidasDemo')(cliente)
 await entrar('rh@demo'); run(`S.mes = null; S.esp = null; S.aba = 'espelho'`)

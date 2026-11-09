@@ -2,16 +2,17 @@
 // a tela só esconde o que o perfil não usa. `sb` é o cliente do Supabase (ou o local, na demonstração).
 let sb
 const S = {perfil: null, email: null, aba: null, d: {}, msg: null, edit: null, sel: new Set(), imp: null, filtro: {setor: '', busca: '', sit: 'ativos'}, convite: null,
-  mes: null, esp: null, bat: []}   // espelho: mês 'aaaa-mm', servidor aberto, batidas do mês
+  mes: null, esp: null, bat: [],   // espelho: mês 'aaaa-mm', servidor aberto, batidas do mês
+  just: [], pedidos: [], jtipo: 'atestado'}   // justificativas do mês, pedidos recentes, tipo escolhido no formulário
 const $ = s => document.querySelector(s)
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]))
 const hoje = () => new Date().toLocaleDateString('sv-SE', {timeZone: 'America/Manaus'})   // aaaa-mm-dd
 const dataBR = d => d ? d.split('-').reverse().join('/') : ''
 
 const ABAS = {
-  rh: [['servidores', 'Servidores'], ['espelho', 'Frequência'], ['setores', 'Setores'], ['horarios', 'Horários'], ['acessos', 'Acessos'], ['importar', 'Importar planilha']],
+  rh: [['servidores', 'Servidores'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos'], ['setores', 'Setores'], ['horarios', 'Horários'], ['acessos', 'Acessos'], ['importar', 'Importar planilha']],
   prefeito: [['servidores', 'Servidores'], ['espelho', 'Frequência']],
-  chefe: [['servidores', 'Minha equipe'], ['espelho', 'Frequência']],
+  chefe: [['servidores', 'Minha equipe'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos']],
   servidor: [['ponto', 'Meu ponto'], ['meu', 'Meu cadastro']],
   totem: [['totem', 'Totem']],
 }
@@ -43,6 +44,11 @@ async function carregar() {
   servidores.forEach(s => Object.assign(s, pes[s.id] || {}))
   S.d = {setores, turnos, escalas, feriados, servidores, perfis, convites}
   S.bat = bat
+  if (p !== 'totem') {   // justificativas que tocam o mês (para o espelho) e os pedidos recentes (aba Pedidos / Meu ponto)
+    const [ini, fim] = limitesMes(mesAtual())
+    ;[S.just, S.pedidos] = await Promise.all([q(sb.from('justificativas').select('*').gte('fim', ini).lte('inicio', fim)),
+      q(sb.from('justificativas').select('*').order('pedido_em', {ascending: false}).range(0, 199))])
+  }
 }
 // batidas do mês (com um dia de folga em cada ponta, por causa do plantão que passa da meia-noite).
 // O Supabase devolve no máximo 1000 linhas por vez: busca em páginas. O banco só entrega o que o perfil pode ver.
@@ -50,7 +56,7 @@ const mesAtual = () => S.mes || hoje().slice(0, 7)
 async function batidasDoMes(mes) {
   const [ini, fim] = limitesMes(mes), out = []
   for (let de = 0; ; de += 1000) {
-    const pag = await q(sb.from('batidas').select('servidor_id, tipo, em').gte('em', addDia(ini, -1) + 'T00:00:00-04:00')
+    const pag = await q(sb.from('batidas').select('servidor_id, tipo, em, origem').gte('em', addDia(ini, -1) + 'T00:00:00-04:00')
       .lt('em', addDia(fim, 2) + 'T00:00:00-04:00').order('em').order('id').range(de, de + 999))
     out.push(...pag); if (pag.length < 1000) return out
   }
@@ -75,7 +81,10 @@ const LIMITE_PLANTAO_MIN = 26 * 60   // igual a limite_plantao_horas() no banco
 
 // Um servidor, um mês → linhas por dia e totais. Função pura: não lê S nem o banco (testável).
 // ponytail: férias/afastamento usam a situação atual, não um histórico por data; registrar períodos quando o RH pedir.
-function espelhoMes(s, batidas, mes, {turnos, escalas, feriados}, hojeStr, agoraAbs = Math.round(Date.now() / 6e4)) {
+const TIPOS_J = {atestado: 'Atestado médico', ferias: 'Férias', licenca: 'Licença / afastamento', servico_externo: 'Serviço externo',
+  abono: 'Outro motivo (abono)', batida: 'Esqueci de bater o ponto'}
+function espelhoMes(s, batidas, mes, {turnos, escalas, feriados, justificativas = []}, hojeStr, agoraAbs = Math.round(Date.now() / 6e4)) {
+  const just = justificativas.filter(j => j.servidor_id === s.id && j.status !== 'recusada')
   const escala = s.escala_id && escalas.find(e => e.id === s.escala_id)
   const turno = turnos.find(t => t.id === (escala ? escala.turno_id : s.turno_id))
   const feriado = Object.fromEntries(feriados.map(f => [f.data, f.nome]))
@@ -90,12 +99,13 @@ function espelhoMes(s, batidas, mes, {turnos, escalas, feriados}, hojeStr, agora
     return turno.dias_semana.includes(new Date(dia + 'T12:00:00Z').getUTCDay()) && !feriado[dia]
   }
   // pares entrada→saída, na ordem; o par conta no dia da entrada (plantão termina no dia seguinte)
-  const pares = []; let aberto = null
+  const pares = []; let aberto = null   // aj: alguma das batidas do par foi ajuste (lançada pelo RH / pedido aprovado)
   for (const b of batidas.filter(b => b.servidor_id === s.id).sort((a, b) => minAbs(a.em) - minAbs(b.em))) {
-    if (b.tipo === 'entrada') { if (aberto) pares.push({ent: aberto}); aberto = minAbs(b.em) }
-    else { pares.push(aberto ? {ent: aberto, sai: minAbs(b.em)} : {sai: minAbs(b.em)}); aberto = null }
+    const aj = b.origem === 'ajuste'
+    if (b.tipo === 'entrada') { if (aberto) pares.push(aberto); aberto = {ent: minAbs(b.em), aj} }
+    else { pares.push(aberto ? {...aberto, sai: minAbs(b.em), aj: aberto.aj || aj} : {sai: minAbs(b.em), aj}); aberto = null }
   }
-  if (aberto) pares.push({ent: aberto})
+  if (aberto) pares.push(aberto)
   const porDia = {}
   for (const p of pares) (porDia[diaLocal(new Date((p.ent ?? p.sai) * 6e4).toISOString())] ??= []).push(p)
 
@@ -115,7 +125,15 @@ function espelhoMes(s, batidas, mes, {turnos, escalas, feriados}, hojeStr, agora
     if (prev && primeira && primeira - d0 > jorn.ent + turno.tolerancia_min) oc.push([`Atraso ${duracao(primeira - d0 - jorn.ent)}`, 'amber'])
     if (prev && fechado && ultima && !ps.some(p => p.ent && !p.sai) && ultima - d0 < jorn.sai - turno.tolerancia_saida_min) oc.push(['Saiu antes', 'amber'])
     if (!prev && ps.length) oc.push([feriado[dia] ? 'Trabalhou no feriado' : 'Fora da escala', 'blue'])
-    const linha = {dia, prev, feriado: feriado[dia], pares: ps, trab, esperado: prev ? jorn.min : 0, oc, fechado}
+    // abono aprovado: o dia não fica devendo (some falta, atraso e saída antecipada); pedido pendente só avisa
+    const abono = just.find(j => j.tipo !== 'batida' && j.status === 'aprovada' && j.inicio <= dia && dia <= j.fim)
+    let esperado = prev ? jorn.min : 0
+    if (abono) {
+      for (let i = oc.length - 1; i >= 0; i--) if (oc[i][0] === 'Falta' || oc[i][0] === 'Saiu antes' || oc[i][0].startsWith('Atraso')) oc.splice(i, 1)
+      oc.push([TIPOS_J[abono.tipo], 'green']); esperado = Math.min(esperado, trab)
+    }
+    if (just.some(j => j.status === 'pendente' && j.inicio <= dia && dia <= j.fim)) oc.push(['Pedido em análise', 'blue'])
+    const linha = {dia, prev, feriado: feriado[dia], pares: ps, trab, esperado, oc, fechado}
     if (fechado) {
       tot.previsto += linha.esperado; tot.trabalhado += trab
       tot.faltas += oc.some(o => o[0] === 'Falta'); tot.atrasos += oc.some(o => o[0].startsWith('Atraso'))
@@ -132,7 +150,8 @@ function render() {
   const p = S.perfil
   $('#who').innerHTML = p ? `<b>${esc(p.nome)}</b>${PAPEIS[p.papel]} · <button data-a="sair">Sair</button>`
     : S.email ? `<b>${esc(S.email)}</b><button data-a="sair">Sair</button>` : ''
-  $('#tabs').innerHTML = p ? ABAS[p.papel].map(([k, t]) => `<a href="#${k}" class="${k === S.aba ? 'on' : ''}">${t}</a>`).join('') : ''
+  const pend = S.pedidos.filter(j => j.status === 'pendente').length
+  $('#tabs').innerHTML = p ? ABAS[p.papel].map(([k, t]) => `<a href="#${k}" class="${k === S.aba ? 'on' : ''}">${t}${k === 'pedidos' && pend ? ` <span class="pill amber">${pend}</span>` : ''}</a>`).join('') : ''
   const msg = S.msg ? `<div class="msg ${S.msg[0]}" role="status">${esc(S.msg[1])}</div>` : ''
   $('#app').innerHTML = msg + (!S.email ? telaEntrar() : !p ? telaConvite() : (TELAS[S.aba] || TELAS[ABAS[p.papel][0][0]])())
 }
@@ -193,7 +212,7 @@ const TELAS = {
     const s = S.esp && S.d.servidores.find(x => x.id === S.esp)
     if (s) return telaEspelho(s, true)
     const f = S.filtro, mes = mesAtual(), lista = S.d.servidores.filter(x => x.situacao !== 'desligado' && (!f.setor || x.setor_id === f.setor))
-    const linhas = lista.map(x => ({s: x, ...espelhoMes(x, S.bat, mes, S.d, hoje())}))
+    const linhas = lista.map(x => ({s: x, ...espelhoMes(x, S.bat, mes, {...S.d, justificativas: S.just}, hoje())}))
       .sort((a, b) => b.tot.faltas + b.tot.pendencias - (a.tot.faltas + a.tot.pendencias) || a.s.nome.localeCompare(b.s.nome))
     const n = (v, cor) => v ? `<span class="pill ${cor}">${v}</span>` : '<span class="sub">0</span>'
     return cabecalho(S.perfil.papel === 'chefe' ? setorNome(S.perfil.setor_id) : 'Frequência', 'Frequência do mês') + `<div class="card"><div class="filtros">
@@ -206,6 +225,15 @@ const TELAS = {
         <td><button class="btn ghost sm" data-a="ver-espelho" data-id="${s.id}">Espelho</button></td></tr>`).join('')}
       </tbody></table>${linhas.length ? '' : '<div class="vazio">Nenhum servidor em atividade.</div>'}</div>
       <p class="sub">Conta até ontem; hoje ainda está em andamento. Quem tem falta ou pendência aparece primeiro.</p></div>`
+  },
+
+  pedidos() {
+    const pend = S.pedidos.filter(j => j.status === 'pendente'), dec = S.pedidos.filter(j => j.status !== 'pendente').slice(0, 30)
+    return cabecalho(S.perfil.papel === 'chefe' ? setorNome(S.perfil.setor_id) : 'Recursos Humanos', 'Pedidos de justificativa') +
+      `<div class="card"><h3>Esperando resposta <small>${pend.length}</small></h3>${listaPedidos(pend, true) || '<div class="vazio">Nenhum pedido esperando resposta.</div>'}
+        <p class="sub">Aprovou "esqueci de bater" → vira batida no espelho, marcada com ✎. Aprovou um abono → os dias do período deixam de contar falta e atraso.
+        Para lançar férias ou licença, abra o espelho do servidor em Frequência.</p></div>
+      <div class="card" style="margin-top:14px"><h3>Respondidos recentemente</h3>${listaPedidos(dec, true) || '<div class="vazio">Nada ainda.</div>'}</div>`
   },
 
   ponto() {
@@ -325,9 +353,10 @@ const TELAS = {
 
 // espelho de um servidor (tela e impressão usam o mesmo HTML)
 function htmlEspelho(s) {
-  const mes = mesAtual(), {dias, tot, turno} = espelhoMes(s, S.bat, mes, S.d, hoje())
+  const mes = mesAtual(), {dias, tot, turno} = espelhoMes(s, S.bat, mes, {...S.d, justificativas: S.just}, hoje())
   const [a, m] = mes.split('-'), nomeMes = new Date(Date.UTC(+a, +m - 1, 15)).toLocaleDateString('pt-BR', {month: 'long', year: 'numeric', timeZone: 'UTC'})
-  const par = (p, dia) => `${p.ent ? hhmm(p.ent) : '?'}–${p.sai ? hhmm(p.sai) + (diaLocal(new Date(p.sai * 6e4).toISOString()) > dia ? ' <span class="sub">(+1)</span>' : '') : '…'}`
+  const par = (p, dia) => `${p.ent ? hhmm(p.ent) : '?'}–${p.sai ? hhmm(p.sai) + (diaLocal(new Date(p.sai * 6e4).toISOString()) > dia ? ' <span class="sub">(+1)</span>' : '') : '…'}` +
+    (p.aj ? ' <span class="sub" title="Batida de ajuste (lançada pelo RH ou pedido aprovado)">✎</span>' : '')
   return `<div class="espelho"><div class="esp-topo"><div><b>${esc(s.nome)}</b> · matrícula ${esc(s.matricula)}<div class="sub">${esc(s.cargo)}${s.cargo ? ' · ' : ''}${esc(setorNome(s.setor_id))} · ${esc(jornada(s) || 'sem horário definido')}${turno ? ` (${hora(turno.entrada)}–${hora(turno.saida)})` : ''}</div></div>
       <div class="sub" style="text-align:right">${esc(NOME_INSTITUICAO)}<br>Espelho de ponto · ${nomeMes}</div></div>
     <div class="grid g4" style="margin:12px 0">
@@ -343,9 +372,39 @@ function htmlEspelho(s) {
     <div class="assinaturas"><div>Servidor(a)</div><div>Chefia imediata</div></div></div>`
 }
 function telaEspelho(s, voltar) {
+  const papel = S.perfil.papel, decide = ['rh', 'chefe'].includes(papel), meus = S.pedidos.filter(j => j.servidor_id === s.id)
   return cabecalho('Espelho de ponto', s.nome, `${voltar ? '<button class="btn ghost" data-a="voltar-espelho">← Frequência</button>' : ''}
       <input type="month" data-mes value="${mesAtual()}" aria-label="Mês" style="width:auto"><button class="btn" data-a="imprimir-espelho" data-id="${s.id}">Imprimir</button>`) +
+    (papel === 'prefeito' ? '' : `<div class="grid g2" style="margin-bottom:14px">${formJustificativa(s)}
+      <div class="card"><h3>${decide ? 'Justificativas' : 'Meus pedidos'} <small>${meus.length}</small></h3>${listaPedidos(meus, decide) || '<div class="vazio">Nenhum pedido ainda.</div>'}</div></div>`) +
     `<div class="card">${htmlEspelho(s)}</div>`
+}
+
+/* ============================== justificativas ============================== */
+function formJustificativa(s) {
+  const t = S.jtipo, lanca = S.perfil.papel !== 'servidor'
+  return `<div class="card"><h3>${lanca ? 'Lançar justificativa' : 'Pedir justificativa'}</h3>
+    <form class="f" data-f="justificativa" data-id="${s.id}">
+      <label class="span2">O que aconteceu<select name="tipo" data-jtipo>${opcoes(Object.entries(TIPOS_J), t)}</select></label>
+      ${t === 'batida'
+        ? `<label>Dia<input name="dia" type="date" required max="${hoje()}"></label><label>Hora em que chegou ou saiu<input name="hora" type="time" required></label>
+           <label>Era a<select name="batida_tipo">${opcoes([['entrada', 'Entrada'], ['saida', 'Saída']], 'entrada')}</select></label>`
+        : `<label>De<input name="inicio" type="date" required></label><label>Até<input name="fim" type="date" required></label>`}
+      <label class="span2">Explique<textarea name="motivo" required minlength="5" maxlength="500" rows="2" placeholder="${t === 'batida' ? 'Ex.: o totem estava sem bateria' : 'Ex.: consulta no posto de saúde'}"></textarea></label>
+      ${t === 'atestado' ? '<p class="sub span2">Entregue o atestado em papel ao RH.</p>' : ''}
+      <div class="acoes span2"><button class="btn">${lanca ? 'Lançar (já aprovado)' : 'Enviar pedido'}</button></div>
+    </form>${lanca ? '' : '<p class="sub">Sua chefia ou o RH responde. A resposta aparece aqui.</p>'}</div>`
+}
+const ST_J = {pendente: ['Em análise', 'blue'], aprovada: ['Aprovado', 'green'], recusada: ['Recusado', 'red']}
+const periodoJ = j => j.tipo === 'batida' ? `${dataBR(diaLocal(j.batida_em))} às ${hhmm(minAbs(j.batida_em))} (${j.batida_tipo === 'entrada' ? 'entrada' : 'saída'})`
+  : j.inicio === j.fim ? dataBR(j.inicio) : `${dataBR(j.inicio)} a ${dataBR(j.fim)}`
+function listaPedidos(lista, decide) {
+  return lista.map(j => `<div class="row"><div><b>${esc(TIPOS_J[j.tipo])}</b> · ${periodoJ(j)}${decide ? ` · ${esc(S.d.servidores.find(x => x.id === j.servidor_id)?.nome || '')}` : ''}
+      <div class="sub">${esc(j.motivo)}${j.resposta ? ` · <b>Resposta:</b> ${esc(j.resposta)}` : ''}</div></div>
+    <div class="acoes"><span class="pill ${ST_J[j.status][1]}">${ST_J[j.status][0]}</span>
+      ${decide && j.status === 'pendente' ? `<form class="acoes" data-f="decidir" data-id="${j.id}"><input name="resposta" placeholder="Resposta (opcional)" maxlength="300" style="width:170px">
+        <button class="btn sm" name="aprovar" value="1">Aprovar</button><button class="btn red sm" name="aprovar" value="0">Recusar</button></form>` : ''}
+      ${!decide && j.status === 'pendente' && j.pedido_por === S.perfil.id ? `<button class="btn ghost sm" data-a="desistir" data-id="${j.id}">Desistir</button>` : ''}</div></div>`).join('')
 }
 
 function formServidor() {
@@ -466,6 +525,18 @@ const FORMS = {
     S.edit = null; return ['ok', 'Turno salvo.']
   },
   async escala(f) { await q(sb.from('escalas').insert(dadosForm(f))); return ['ok', 'Escala salva.'] },
+  async justificativa(f) {
+    const d = dadosForm(f), batida = d.tipo === 'batida'
+    if (!batida && d.fim < d.inicio) throw new Error('A data final é antes da inicial.')
+    const j = await q(sb.rpc('pedir_justificativa', {p_servidor: f.dataset.id, p_tipo: d.tipo, p_inicio: batida ? null : d.inicio, p_fim: batida ? null : d.fim,
+      p_motivo: d.motivo, p_batida_tipo: batida ? d.batida_tipo : null, p_batida_em: batida ? `${d.dia}T${d.hora}:00-04:00` : null}))
+    return ['ok', j.status === 'aprovada' ? 'Justificativa lançada e aprovada.' : 'Pedido enviado. Sua chefia ou o RH vai responder.']
+  },
+  async decidir(f, ev) {
+    const aprovar = ev.submitter?.value === '1'
+    await q(sb.rpc('decidir_justificativa', {p_id: f.dataset.id, p_aprovar: aprovar, p_resposta: dadosForm(f).resposta || null}))
+    return ['ok', aprovar ? 'Pedido aprovado.' : 'Pedido recusado.']
+  },
   async feriado(f) { await q(sb.from('feriados').insert(dadosForm(f))); return ['ok', 'Feriado salvo.'] },
   async 'convite-novo'(f) {
     const d = vazioNull(dadosForm(f))
@@ -476,7 +547,7 @@ const FORMS = {
 }
 
 const ACOES = {
-  async sair() { await sb.auth.signOut(); Object.assign(S, {perfil: null, email: null, d: {}, edit: null, sel: new Set(), imp: null, convite: null}) },
+  async sair() { await sb.auth.signOut(); Object.assign(S, {perfil: null, email: null, d: {}, edit: null, sel: new Set(), imp: null, convite: null, esp: null, bat: [], just: [], pedidos: []}) },
   novo() { S.edit = 'novo'; scrollTo(0, 0) },
   editar(el) { S.edit = el.dataset.id; scrollTo(0, 0) },
   cancelar() { S.edit = null },
@@ -498,6 +569,10 @@ const ACOES = {
     await q(sb.from('setores').delete().eq('id', el.dataset.id)); return ['ok', 'Setor excluído.']
   },
   async 'excluir-feriado'(el) { await q(sb.from('feriados').delete().eq('data', el.dataset.id)); return ['ok', 'Feriado excluído.'] },
+  async desistir(el) {
+    if (!confirm('Desistir deste pedido?')) return false
+    await q(sb.from('justificativas').delete().eq('id', el.dataset.id)); return ['ok', 'Pedido retirado.']
+  },
   'ver-espelho'(el) { S.esp = el.dataset.id; scrollTo(0, 0); return false },
   'voltar-espelho'() { S.esp = null; return false },
   'imprimir-espelho'(el) {
@@ -551,6 +626,7 @@ function ligarEventos() {
     const el = ev.target
     if (el.dataset.a === 'arquivo') return executar(() => ACOES.arquivo(el))
     if (el.matches('[data-papel]')) { S.edit = el.value; S.convite = null; return render() }
+    if (el.matches('[data-jtipo]')) { S.jtipo = el.value; return render() }
     if (el.matches('[data-mes]') && el.value) { S.mes = el.value; return executar(async () => {}) }   // recarrega as batidas do mês
     if (el.dataset.filtro) { S.filtro[el.dataset.filtro] = el.value; render() }
   })
