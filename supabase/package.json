@@ -1,0 +1,11 @@
+{
+  "name": "sigep-banco",
+  "private": true,
+  "description": "Banco de dados do SIGEP (Supabase)",
+  "scripts": {
+    "test": "node testar.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.15"
+  }
+}
