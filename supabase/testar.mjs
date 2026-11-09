@@ -230,6 +230,19 @@ ok((await pedir(ana2.id, 'abono', '2026-11-04', '2026-11-04', 'Pedido no víncul
 await como(RH); await q(`update servidores set situacao = 'ferias' where id = $1`, [ana2.id])
 await como(TOTEM); r = await bater(cAna2); ok(r.servidor_id === ana.id, 'vínculo da tarde de férias: o crachá 2 cai no vínculo ativo')
 
+// ---------- vários turnos no mesmo contrato ----------
+await como(RH)
+const noe = await um(`insert into servidores (matricula, nome, setor_id, turno_id, turnos_extra) values ('0800', 'Noé Lima', $1, $2, $3) returning id, turnos_extra`, [escola.id, mat.id, [vesp.id, vesp.id]])
+ok(noe.turnos_extra.length === 1, 'turno extra repetido vira um só')
+await erro(`update servidores set turnos_extra = $1 where id = $2`, [[mat.id], noe.id], 'inválido', 'turno extra igual ao principal')
+await erro(`update servidores set turnos_extra = $1 where id = $2`, [['00000000-0000-4000-8000-00000000dead'], noe.id], 'inválido', 'turno extra que não existe')
+await erro(`insert into servidores (matricula, nome, setor_id, escala_id, escala_inicio, turnos_extra) values ('0801', 'Escala Extra', $1, $2, '2026-11-01', $3)`, [escola.id, vigia.id, [vesp.id]], 'turnos_extra', 'escala não tem turno extra')
+await como(CHEFE); ok((await um('select turnos_extra from servidores where id = $1', [noe.id])).turnos_extra.length === 1, 'chefe lê os turnos extras')
+const cNoe = await (async () => { await como(RH); return codigo(noe.id) })()
+await como(TOTEM)
+const seq = await Promise.all([]).then(async () => [await bater(cNoe, idade('06:58')), await bater(cNoe, idade('11:31')), await bater(cNoe, idade('12:57')), await bater(cNoe, idade('17:03'))])
+ok(seq.map(x => x.tipo).join() === 'entrada,saida,entrada,saida' && seq.every(x => x.servidor_id === noe.id && x.vinculo == null), 'um contrato, dois turnos: as 4 batidas no mesmo cadastro')
+
 // desativar acesso
 await como(RH); await q('update perfis set ativo = false where id = $1', [TOTEM])
 await como(TOTEM); await erro('select registrar_batida($1)', [cMarta], 'não está autorizado', 'totem desativado pelo RH para na hora')

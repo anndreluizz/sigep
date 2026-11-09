@@ -30,7 +30,7 @@ const traduz = e => e.code === 'P0001' || /[áéíóúãõç]/i.test(e.message) 
 async function q(p) { const {data, error} = await p; if (error) throw new Error(traduz(error)); return data }
 
 /* ============================== dados ============================== */
-const COLS_SERV = 'id, matricula, nome, cargo, setor_id, turno_id, escala_id, escala_inicio, situacao, desligado_em, vinculo, admissao'
+const COLS_SERV = 'id, matricula, nome, cargo, setor_id, turno_id, turnos_extra, escala_id, escala_inicio, situacao, desligado_em, vinculo, admissao'
 async function carregar() {
   if (S.aba === 'painel') S.mes = null   // o painel é sempre o mês de hoje
   const p = S.perfil.papel, rh = p === 'rh', gestor = rh || p === 'chefe'
@@ -63,15 +63,16 @@ async function batidasDoMes(mes) {
   }
 }
 const setorNome = id => S.d.setores.find(s => s.id === id)?.nome || '—'
-const jornada = s => s.escala_id ? S.d.escalas.find(e => e.id === s.escala_id)?.nome : S.d.turnos.find(t => t.id === s.turno_id)?.nome || '—'
+const jornada = s => s.escala_id ? S.d.escalas.find(e => e.id === s.escala_id)?.nome
+  : [s.turno_id, ...(s.turnos_extra || [])].map(id => S.d.turnos.find(t => t.id === id)?.nome).filter(Boolean).join(' + ') || '—'
 const hora = t => t?.slice(0, 5)
 // vínculos da mesma pessoa = cadastros com o mesmo CPF (o banco usa a mesma regra no totem)
 const outrosVinculos = s => s.cpf ? S.d.servidores.filter(x => x.id !== s.id && x.cpf === s.cpf) : []
 function horariosSeCruzam(a, b) {   // dois turnos que trabalham no mesmo dia da semana e na mesma faixa de horário
-  const t = v => S.d.turnos.find(x => x.id === (v.turno_id || S.d.escalas.find(e => e.id === v.escala_id)?.turno_id))
-  const ta = t(a), tb = t(b); if (!ta || !tb || !ta.dias_semana.some(d => tb.dias_semana.includes(d))) return false
+  const ts = v => (v.escala_id ? [S.d.escalas.find(e => e.id === v.escala_id)?.turno_id] : [v.turno_id, ...(v.turnos_extra || [])]).map(id => S.d.turnos.find(x => x.id === id)).filter(Boolean)
   const faixa = x => { const e = toMin(x.entrada); let s = toMin(x.saida); if (s <= e) s += 1440; return [e, s] }
-  const [a0, a1] = faixa(ta), [b0, b1] = faixa(tb); return a0 < b1 && b0 < a1
+  return ts(a).some(ta => ts(b).some(tb => { if (!ta.dias_semana.some(d => tb.dias_semana.includes(d))) return false
+    const [a0, a1] = faixa(ta), [b0, b1] = faixa(tb); return a0 < b1 && b0 < a1 }))
 }
 const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
@@ -95,17 +96,20 @@ const TIPOS_J = {atestado: 'Atestado médico', ferias: 'Férias', licenca: 'Lice
 function espelhoMes(s, batidas, mes, {turnos, escalas, feriados, justificativas = []}, hojeStr, agoraAbs = Math.round(Date.now() / 6e4)) {
   const just = justificativas.filter(j => j.servidor_id === s.id && j.status !== 'recusada')
   const escala = s.escala_id && escalas.find(e => e.id === s.escala_id)
-  const turno = turnos.find(t => t.id === (escala ? escala.turno_id : s.turno_id))
+  // turnos do contrato: escala = o turno dela; senão o principal + os extras (ex.: Matutino + Noturno)
+  const meus = (escala ? [escala.turno_id] : [s.turno_id, ...(s.turnos_extra || [])]).map(id => turnos.find(t => t.id === id)).filter(Boolean)
+  const turno = meus[0], varios = meus.length > 1
   const feriado = Object.fromEntries(feriados.map(f => [f.data, f.nome]))
   const [ini, fim] = limitesMes(mes)
-  const jorn = turno && (() => {
-    const ent = toMin(turno.entrada); let sai = toMin(turno.saida); if (sai <= ent) sai += 1440
-    return {ent, sai, min: sai - ent - (turno.saida_almoco ? toMin(turno.retorno_almoco) - toMin(turno.saida_almoco) : 0)}
-  })()
-  const previsto = dia => {
-    if (!turno || (s.admissao && dia < s.admissao) || (s.desligado_em && dia > s.desligado_em)) return false
-    if (escala) { const n = Math.round((Date.parse(dia) - Date.parse(s.escala_inicio)) / 864e5); return n >= 0 && n % (escala.dias_trabalho + escala.dias_descanso) < escala.dias_trabalho }
-    return turno.dias_semana.includes(new Date(dia + 'T12:00:00Z').getUTCDay()) && !feriado[dia]
+  const faixa = t => { const ent = toMin(t.entrada); let sai = toMin(t.saida); if (sai <= ent) sai += 1440
+    return {t, ent, sai, min: sai - ent - (t.saida_almoco ? toMin(t.retorno_almoco) - toMin(t.saida_almoco) : 0)} }
+  const periodos = dia => {   // períodos de trabalho previstos no dia
+    if (!turno || (s.admissao && dia < s.admissao) || (s.desligado_em && dia > s.desligado_em)) return []
+    if (escala) { const n = Math.round((Date.parse(dia) - Date.parse(s.escala_inicio)) / 864e5)
+      return n >= 0 && n % (escala.dias_trabalho + escala.dias_descanso) < escala.dias_trabalho ? [faixa(turno)] : [] }
+    if (feriado[dia]) return []
+    const dow = new Date(dia + 'T12:00:00Z').getUTCDay()
+    return meus.filter(t => t.dias_semana.includes(dow)).map(faixa).sort((a, b) => a.ent - b.ent)
   }
   // pares entrada→saída, na ordem; o par conta no dia da entrada (plantão termina no dia seguinte)
   const pares = []; let aberto = null   // aj: alguma das batidas do par foi ajuste (lançada pelo RH / pedido aprovado)
@@ -120,38 +124,48 @@ function espelhoMes(s, batidas, mes, {turnos, escalas, feriados, justificativas 
 
   const dias = [], tot = {previsto: 0, trabalhado: 0, faltas: 0, atrasos: 0, pendencias: 0}
   for (let dia = ini; dia <= fim; dia = addDia(dia, 1)) {
-    const prev = previsto(dia), ps = porDia[dia] || [], d0 = inicioDia(dia), oc = []
+    const ps = porDia[dia] || [], d0 = inicioDia(dia), oc = [], fechado = dia < hojeStr
+    const pers = periodos(dia).map(f => ({nome: f.t.nome, ent: d0 + f.ent, sai: d0 + f.sai, min: f.min, t: f.t, pares: [],
+      alm: f.t.saida_almoco ? [d0 + toMin(f.t.saida_almoco), d0 + toMin(f.t.retorno_almoco)] : null}))
+    const prev = pers.length > 0
+    // cada par vai para o período mais próximo (pela entrada; sem entrada, pela saída)
+    for (const p of ps) { let m = null, dm = Infinity
+      for (const pe of pers) { const d = p.ent ? Math.abs(p.ent - pe.ent) : Math.abs(p.sai - pe.sai); if (d < dm) { dm = d; m = pe } }
+      m?.pares.push(p) }
     // intervalo pré-assinalado: quem não bate saída/volta do almoço tem o intervalo descontado do par que o cobre
-    const [alm0, alm1] = turno?.saida_almoco ? [d0 + toMin(turno.saida_almoco), d0 + toMin(turno.retorno_almoco)] : []
-    const trab = ps.reduce((t, p) => t + (p.ent && p.sai ? p.sai - p.ent - (alm0 && p.ent <= alm0 && p.sai >= alm1 ? alm1 - alm0 : 0) : 0), 0)
-    const fechado = dia < hojeStr
+    const trab = ps.reduce((t, p) => t + (p.ent && p.sai ? p.sai - p.ent - pers.reduce((a, pe) => a + (pe.alm && p.ent <= pe.alm[0] && p.sai >= pe.alm[1] ? pe.alm[1] - pe.alm[0] : 0), 0) : 0), 0)
     for (const p of ps) {
       if (!p.ent) oc.push(['Saída sem entrada', 'amber'])
       else if (!p.sai) oc.push(agoraAbs - p.ent < LIMITE_PLANTAO_MIN && dia >= addDia(hojeStr, -1) ? ['Em andamento', 'blue'] : ['Sem saída', 'red'])
     }
+    const nm = pe => varios ? ` (${pe.nome})` : ''
     if (prev && fechado && !ps.length) oc.push(['Falta', 'red'])
-    const primeira = ps.find(p => p.ent)?.ent, ultima = [...ps].reverse().find(p => p.sai)?.sai
-    if (prev && primeira && primeira - d0 > jorn.ent + turno.tolerancia_min) oc.push([`Atraso ${duracao(primeira - d0 - jorn.ent)}`, 'amber'])
-    if (prev && fechado && ultima && !ps.some(p => p.ent && !p.sai) && ultima - d0 < jorn.sai - turno.tolerancia_saida_min) oc.push(['Saiu antes', 'amber'])
+    for (const pe of pers) {
+      if (!pe.pares.length) { if (fechado && ps.length) oc.push([`Faltou no ${pe.nome}`, 'red']); continue }
+      const primeira = pe.pares.find(p => p.ent)?.ent, ultima = [...pe.pares].reverse().find(p => p.sai)?.sai
+      if (primeira && primeira > pe.ent + pe.t.tolerancia_min) oc.push([`Atraso ${duracao(primeira - pe.ent)}${nm(pe)}`, 'amber'])
+      if (fechado && ultima && !pe.pares.some(p => p.ent && !p.sai) && ultima < pe.sai - pe.t.tolerancia_saida_min) oc.push([`Saiu antes${nm(pe)}`, 'amber'])
+    }
     if (!prev && ps.length) oc.push([feriado[dia] ? 'Trabalhou no feriado' : 'Fora da escala', 'blue'])
     // abono aprovado: o dia não fica devendo (some falta, atraso e saída antecipada); pedido pendente só avisa
     const abono = just.find(j => j.tipo !== 'batida' && j.status === 'aprovada' && j.inicio <= dia && dia <= j.fim)
-    let esperado = prev ? jorn.min : 0
+    let esperado = pers.reduce((t, pe) => t + pe.min, 0)
+    const devendo = o => o[0] === 'Falta' || o[0].startsWith('Faltou no') || o[0].startsWith('Saiu antes') || o[0].startsWith('Atraso')
     if (abono) {
-      for (let i = oc.length - 1; i >= 0; i--) if (oc[i][0] === 'Falta' || oc[i][0] === 'Saiu antes' || oc[i][0].startsWith('Atraso')) oc.splice(i, 1)
+      for (let i = oc.length - 1; i >= 0; i--) if (devendo(oc[i])) oc.splice(i, 1)
       oc.push([TIPOS_J[abono.tipo], 'green']); esperado = Math.min(esperado, trab)
     }
     if (just.some(j => j.status === 'pendente' && j.inicio <= dia && dia <= j.fim)) oc.push(['Pedido em análise', 'blue'])
-    const linha = {dia, prev, feriado: feriado[dia], pares: ps, trab, esperado, oc, fechado}
+    const linha = {dia, prev, feriado: feriado[dia], pares: ps, trab, esperado, oc, fechado, periodos: pers}
     if (fechado) {
       tot.previsto += linha.esperado; tot.trabalhado += trab
-      tot.faltas += oc.some(o => o[0] === 'Falta'); tot.atrasos += oc.some(o => o[0].startsWith('Atraso'))
+      tot.faltas += oc.filter(o => o[0] === 'Falta' || o[0].startsWith('Faltou no')).length; tot.atrasos += oc.some(o => o[0].startsWith('Atraso'))
       tot.pendencias += oc.filter(o => ['Sem saída', 'Saída sem entrada'].includes(o[0])).length
     }
     dias.push(linha)
   }
   tot.saldo = tot.trabalhado - tot.previsto
-  return {dias, tot, turno}
+  return {dias, tot, turno, turnos: meus}
 }
 
 /* ============================== telas ============================== */
@@ -220,16 +234,19 @@ const TELAS = {
   // Painel "Hoje": quem devia vir, quem chegou, quem falta, o totem e as pendências. Mesmas regras do espelho.
   painel() {
     const hj = hoje(), agora = Math.round(Date.now() / 6e4), d0 = inicioDia(hj), papel = S.perfil.papel, cad = {...S.d, justificativas: S.just}
+    // cada pessoa: o período que importa agora (o atrasado, o que está por vir, ou o que já faltou)
     const linhas = S.d.servidores.filter(s => s.situacao === 'ativo').map(s => {
       const e = espelhoMes(s, S.bat, hj.slice(0, 7), cad, hj, agora), d = e.dias.find(x => x.dia === hj)
-      const ent = e.turno ? toMin(e.turno.entrada) : null, chegou = !!d?.pares.some(p => p.ent)
-      const sai = e.turno ? toMin(e.turno.saida) + (toMin(e.turno.saida) <= ent ? 1440 : 0) : null
-      const abono = d?.oc.find(o => o[1] === 'green')?.[0], previsto = !!d?.prev && !abono
-      const faltou = previsto && !chegou && agora > d0 + sai   // o turno já acabou e não veio
-      const atrasado = previsto && !faltou && (d.oc.some(o => o[0].startsWith('Atraso')) || (!chegou && agora > d0 + ent + e.turno.tolerancia_min))
-      return {s, tot: e.tot, ent, chegou, abono, previsto, atrasado, faltou}
+      const abono = d?.oc.find(o => o[1] === 'green')?.[0], pers = abono ? [] : d?.periodos || []
+      const sem = pers.filter(p => !p.pares.length), faltou = sem.filter(p => agora > p.sai), porVir = sem.filter(p => agora <= p.sai)
+      const atrasoNa = porVir.find(p => agora > p.ent + p.t.tolerancia_min)
+      const veio = pers.some(p => p.pares.length), chegouAtrasado = d?.oc.some(o => o[0].startsWith('Atraso'))
+      const foco = atrasoNa || faltou[0] || porVir[0], varios = pers.length > 1
+      return {s, tot: e.tot, abono, previsto: pers.length > 0, foco, varios,
+        chegou: pers.length > 0 && !atrasoNa && !faltou.length && (veio || !porVir.length),   // todos os períodos que já começaram têm batida
+        faltou: !atrasoNa && faltou.length > 0, atrasado: !!atrasoNa || (!!chegouAtrasado && !faltou.length)}
     })
-    const prev = linhas.filter(l => l.previsto), chegaram = prev.filter(l => l.chegou), faltam = prev.filter(l => !l.chegou).sort((a, b) => a.ent - b.ent)
+    const prev = linhas.filter(l => l.previsto), chegaram = prev.filter(l => l.chegou), faltam = prev.filter(l => !l.chegou).sort((a, b) => a.foco.ent - b.foco.ent)
     const atrasados = prev.filter(l => l.atrasado), abonados = linhas.filter(l => l.abono), fora = S.d.servidores.filter(s => ['ferias', 'afastado'].includes(s.situacao))
     const nome = Object.fromEntries(S.d.servidores.map(s => [s.id, s]))
     const hojeBat = S.bat.filter(b => diaLocal(b.em) === hj).sort((a, b) => minAbs(b.em) - minAbs(a.em))
@@ -260,8 +277,8 @@ const TELAS = {
         ${stat(atrasados.length, 'atrasados', atrasados.length ? 'warn' : 'ok')}${stat(faltam.length, faltam.some(l => !l.faltou) ? 'ainda não chegaram' : 'não vieram hoje', faltam.length ? 'bad' : 'ok')}</div>
       <div class="grid g2" style="margin-top:14px">
         <div class="card"><h3>Ainda não chegou <small>${faltam.length}</small></h3>
-          ${faltam.map(l => `<div class="row"><div><b>${esc(l.s.nome)}</b><div class="sub">${papel === 'chefe' ? '' : esc(setorNome(l.s.setor_id)) + ' · '}${esc(jornada(l.s))} · entra ${hhmm(d0 + l.ent)}</div></div>
-            ${l.faltou ? '<span class="pill red">faltou hoje</span>' : l.atrasado ? '<span class="pill amber">atrasado</span>' : '<span class="pill">ainda no horário</span>'}</div>`).join('') || '<div class="vazio">Todo mundo que devia vir já chegou.</div>'}
+          ${faltam.map(l => `<div class="row"><div><b>${esc(l.s.nome)}</b><div class="sub">${papel === 'chefe' ? '' : esc(setorNome(l.s.setor_id)) + ' · '}${esc(jornada(l.s))} · ${l.faltou ? 'era às' : 'entra'} ${hhmm(l.foco.ent)}${l.varios ? ` (${esc(l.foco.nome)})` : ''}</div></div>
+            ${l.faltou ? `<span class="pill red">${l.varios ? 'faltou no ' + esc(l.foco.nome) : 'faltou hoje'}</span>` : l.atrasado ? `<span class="pill amber">atrasado${l.varios ? ' no ' + esc(l.foco.nome) : ''}</span>` : '<span class="pill">ainda no horário</span>'}</div>`).join('') || '<div class="vazio">Todo mundo que devia vir já chegou.</div>'}
           ${abonados.length || fora.length ? `<p class="sub" style="margin-top:10px">Não contam hoje: ${[...abonados.map(l => `${esc(l.s.nome)} (${esc(l.abono)})`), ...fora.map(s => `${esc(s.nome)} (${SITUACAO[s.situacao][0].toLowerCase()})`)].join(', ')}.</p>` : ''}</div>
         <div class="card"><h3>Últimas batidas de hoje <small>${hojeBat.length}</small></h3>
           ${hojeBat.slice(0, 8).map(b => `<div class="row"><div><b>${hhmm(minAbs(b.em))}</b> ${esc(nome[b.servidor_id]?.nome || '')}${b.origem === 'ajuste' ? ' <span class="sub">✎</span>' : ''}</div>
@@ -498,7 +515,10 @@ function formServidor() {
       <label>Cargo<input name="cargo" value="${esc(s.cargo)}" data-opcoes="Professor(a)|Merendeira|Vigia|Aux. serviços gerais|Secretário(a) escolar"></label>
       <label>Setor<select name="setor_id" required>${S.perfil.papel === 'chefe' ? opcoes([[S.perfil.setor_id, setorNome(S.perfil.setor_id)]], S.perfil.setor_id)
         : opcoes(S.d.setores.map(x => [x.id, x.nome]), s.setor_id, 'Escolha')}</select></label>
-      <label>Horário<select name="jornada">${opcoes(jornadas, jor, 'Sem horário definido')}</select></label>
+      <label class="span2">Horário (turno principal ou escala)<select name="jornada">${opcoes(jornadas, jor, 'Sem horário definido')}</select></label>
+      ${S.d.turnos.length > 1 ? `<fieldset class="span2" style="border:0;padding:0;margin:0"><legend style="font-weight:700">Também trabalha no turno <span class="sub">(mesmo contrato · ex.: de manhã e à noite)</span></legend>
+        <div class="et-chips">${S.d.turnos.map(t => `<label style="flex-direction:row;align-items:center;gap:6px;font-weight:600"><input type="checkbox" name="turno_extra" value="${t.id}" style="width:auto" ${(s.turnos_extra || []).includes(t.id) ? 'checked' : ''}>${esc(t.nome)} ${hora(t.entrada)}–${hora(t.saida)}</label>`).join('')}</div>
+        <p class="sub">Outro contrato (ex.: efetivo + contratado) é outro cadastro, com outra matrícula e o mesmo CPF.</p></fieldset>` : ''}
       <label>Início da escala <span class="sub">(só para plantão, ex.: vigia 24×72 · turno normal: deixe vazio)</span><input name="escala_inicio" type="date" value="${s.escala_inicio || ''}"></label>
       <label>Vínculo<select name="vinculo">${opcoes([['efetivo', 'Efetivo'], ['contratado', 'Contratado'], ['comissionado', 'Comissionado']], s.vinculo, '—')}</select></label>
       <label>Admissão<input name="admissao" type="date" value="${s.admissao || ''}"></label>
@@ -581,9 +601,13 @@ const FORMS = {
     return ['ok', 'Acesso liberado. Bem-vindo(a) ao SIGEP!']
   },
   async servidor(f) {
-    const d = vazioNull(dadosForm(f)), [tipo, id] = (d.jornada || ':').split(':')
-    delete d.jornada
+    const d = vazioNull(dadosForm(f)), [tipo, id] = (d.jornada || ':').split(':'), extras = new FormData(f).getAll('turno_extra')
+    delete d.jornada; delete d.turno_extra
     Object.assign(d, {turno_id: tipo === 't' ? id : null, escala_id: tipo === 'e' ? id : null, cpf: d.cpf?.replace(/\D/g, '') || null, cargo: d.cargo || ''})
+    d.turnos_extra = tipo === 't' ? extras.filter(x => x !== id) : []
+    if (tipo !== 't' && extras.length) throw erroCampo(tipo === 'e' ? 'Quem trabalha em escala (plantão) não tem turno extra.' : 'Escolha primeiro o turno principal.', 'jornada')
+    const cruza = d.turnos_extra.length && horariosSeCruzam({turno_id: d.turno_id, turnos_extra: []}, {turno_id: null, turnos_extra: d.turnos_extra})
+    if (cruza) throw erroCampo('Os turnos marcados se cruzam no horário. Marque turnos em horários diferentes.', 'turno_extra')
     if (!d.escala_id) d.escala_inicio = null
     else if (!d.escala_inicio) throw erroCampo('Informe o início da escala (o primeiro dia de trabalho do ciclo).', 'escala_inicio')
     if (S.edit === 'novo') await q(sb.from('servidores').insert(d))

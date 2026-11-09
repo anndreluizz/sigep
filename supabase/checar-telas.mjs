@@ -146,6 +146,19 @@ const alm = esp({id: 'R', turno_id: 'T3'}, [bt('R', 'entrada', '2026-10-01T07:00
   bt('R', 'entrada', '2026-10-02T07:00'), bt('R', 'saida', '2026-10-02T11:00'), bt('R', 'entrada', '2026-10-02T12:00'), bt('R', 'saida', '2026-10-02T17:00')],
   '2026-10', {...cad, turnos: [integral]}, '2026-11-09').dias
 ok(alm[0].esperado === 480 && alm[0].trab === 480 && alm[1].trab === 540, `almoço: 2 batidas descontam o intervalo (${alm[0].trab}); 4 batidas contam o que bateu (${alm[1].trab})`)
+// mesmo contrato em dois turnos (Matutino 07–11 + Noturno 19–21): cada período é conferido separado
+const tM = {id: 'TM', nome: 'Matutino', entrada: '07:00:00', saida: '11:00:00', tolerancia_min: 10, tolerancia_saida_min: 10, dias_semana: [1, 2, 3, 4, 5]}
+const tN = {id: 'TN', nome: 'Noturno', entrada: '19:00:00', saida: '21:00:00', tolerancia_min: 10, tolerancia_saida_min: 10, dias_semana: [1, 2, 3, 4, 5]}
+const mn = esp({id: 'MN', turno_id: 'TM', turnos_extra: ['TN']}, [
+  bt('MN', 'entrada', '2026-10-01T07:00'), bt('MN', 'saida', '2026-10-01T11:00'), bt('MN', 'entrada', '2026-10-01T19:05'), bt('MN', 'saida', '2026-10-01T21:00'),
+  bt('MN', 'entrada', '2026-10-02T07:00'), bt('MN', 'saida', '2026-10-02T11:00'),
+  bt('MN', 'entrada', '2026-10-05T07:30'), bt('MN', 'saida', '2026-10-05T11:00'), bt('MN', 'entrada', '2026-10-05T19:00'), bt('MN', 'saida', '2026-10-05T20:00')],
+  '2026-10', {...cad, turnos: [tM, tN]}, '2026-11-09')
+const mnd = d => mn.dias.find(x => x.dia === d), mno = d => mnd(d).oc.map(o => o[0]).join(',')
+ok(mnd('2026-10-01').esperado === 360 && mnd('2026-10-01').trab === 355 && mno('2026-10-01') === '', 'dois turnos: previsto 4h + 2h, as 4 batidas fecham o dia')
+ok(mno('2026-10-02') === 'Faltou no Noturno', 'dois turnos: veio de manhã e faltou à noite: ' + mno('2026-10-02'))
+ok(mno('2026-10-05') === 'Atraso 0h30 (Matutino),Saiu antes (Noturno)', 'dois turnos: atraso e saída antecipada no período certo: ' + mno('2026-10-05'))
+ok(mno('2026-10-06') === 'Falta' && mn.tot.faltas === 19 && mn.tot.previsto === 21 * 360, `dois turnos: dia sem nada é uma falta; total ${mn.tot.faltas} (18 dias + 1 período)`)
 ok(esp({id: 'A', turno_id: 'T1', admissao: '2026-10-20'}, [], '2026-10', cad, '2026-11-09').tot.faltas === 9, 'antes da admissão não é falta')
 
 // ---------- espelho de ponto: telas, com batidas de verdade no banco ----------
@@ -171,6 +184,18 @@ for (const email of ['rh@demo', 'chefe@demo', 'prefeito@demo', 'servidor@demo'])
     ok(!/undefined|NaN|\[object/.test(tela()) && !run('S.msg'), `tela ${email}/${aba}: ${run('S.msg')?.[1] || tela().match(/.{0,60}(undefined|NaN|\[object).{0,60}/)?.[0]}`)
   }
 }
+
+// ---------- cadastro com mais de um turno no mesmo contrato ----------
+await entrar('rh@demo'); run(`S.aba = 'horarios'`)
+await form('turno', [['nome', 'Noturno'], ['entrada', '19:00'], ['saida', '21:00'], ['saida_almoco', ''], ['retorno_almoco', ''], ['tolerancia_min', '10'], ['tolerancia_saida_min', '10'], ['dia', '1'], ['dia', '2'], ['dia', '3'], ['dia', '4'], ['dia', '5']])
+const noturno = run(`S.d.turnos.find(t => t.nome === 'Noturno').id`), tIntegral = '20000000-0000-4000-8000-000000000002'
+run(`S.aba = 'servidores'; S.edit = 'novo'; render()`); ok(tela().includes('Também trabalha no turno'), 'cadastro mostra os turnos extras')
+await form('servidor', [['matricula', '0600'], ['nome', 'Noêmia Santos'], ['setor_id', escola], ['jornada', 't:' + matutino], ['turno_extra', noturno], ['escala_inicio', '']])
+ok(msg()?.[0] === 'ok' && run(`jornada(S.d.servidores.find(s => s.matricula === '0600'))`) === 'Matutino + Noturno', 'Matutino + Noturno no mesmo cadastro: ' + msg()?.[1])
+run(`S.edit = 'novo'`); await form('servidor', [['matricula', '0601'], ['nome', 'Turnos Cruzados'], ['setor_id', escola], ['jornada', 't:' + matutino], ['turno_extra', tIntegral]])
+ok(msg()?.[1]?.includes('se cruzam'), 'turnos que se cruzam não são aceitos: ' + msg()?.[1])
+run(`S.edit = 'novo'`); await form('servidor', [['matricula', '0602'], ['nome', 'Vigia com Extra'], ['setor_id', escola], ['jornada', 'e:' + vigia], ['turno_extra', noturno], ['escala_inicio', '2026-11-01']])
+ok(msg()?.[1]?.includes('escala'), 'escala (plantão) não tem turno extra: ' + msg()?.[1])
 
 // ---------- RH cria a escola e o acesso da secretaria; a secretaria cadastra os servidores dela ----------
 await entrar('rh@demo'); run(`S.aba = 'setores'; S.convite = null`)
