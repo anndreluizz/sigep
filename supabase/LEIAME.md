@@ -24,9 +24,9 @@ Roda o banco num Postgres de verdade (PGlite) e tenta o uso certo e o indevido c
 | Perfil | Pode | Não pode |
 |---|---|---|
 | RH | Cadastrar e desligar servidores, setores, turnos, escalas e feriados; gerar convites; ajustar batidas (sempre com motivo); decidir e lançar justificativas de qualquer setor; fechar e reabrir o mês | Apagar o histórico |
-| Prefeito | Ver todos os setores, servidores, batidas, espelhos e justificativas | Alterar qualquer coisa |
+| Prefeito | Ver todos os setores, servidores, batidas, folhas de ponto e justificativas | Alterar qualquer coisa |
 | Secretaria / chefe do setor | Cadastrar e editar os servidores da própria unidade (inclusive CPF, telefone e crachá); gerar convite de servidor e de totem da unidade; ver equipe, batidas e espelho; aprovar/recusar pedidos e lançar abonos | Ver ou mexer em outra unidade; transferir servidor; gerar acesso de chefe/RH; ajustar batidas direto |
-| Servidor | Ver o próprio cadastro, espelho e histórico; pedir justificativa ("esqueci de bater", atestado, etc.) e desistir enquanto ninguém respondeu | Ver colegas; bater ponto pelo celular; aprovar o próprio pedido |
+| Servidor | Ver o próprio cadastro, folha de ponto e histórico; pedir justificativa ("esqueci de bater", atestado, etc.) e desistir enquanto ninguém respondeu | Ver colegas; bater ponto pelo celular; aprovar o próprio pedido |
 | Totem | Registrar entrada e saída dos servidores do seu setor (`registrar_batida`) | Ler qualquer dado |
 
 - CPF, telefone e o código do crachá só o RH vê (`dados_pessoais`).

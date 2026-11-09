@@ -281,7 +281,7 @@ const TELAS = {
       ${linhas.map(({s, tot, turno}) => `<tr><td>${esc(s.nome)}<div class="sub">mat. ${esc(s.matricula)}${turno ? '' : ' · sem horário definido'}</div></td><td>${esc(setorNome(s.setor_id))}</td>
         <td>${duracao(tot.previsto)}</td><td>${duracao(tot.trabalhado)}</td><td><b style="color:var(${tot.saldo < 0 ? '--red' : '--goldink'})">${duracao(tot.saldo)}</b></td>
         <td>${n(tot.faltas, 'red')}</td><td>${n(tot.atrasos, 'amber')}</td><td>${n(tot.pendencias, 'red')}</td>
-        <td><button class="btn ghost sm" data-a="ver-espelho" data-id="${s.id}">Espelho</button></td></tr>`).join('')}
+        <td><button class="btn ghost sm" data-a="ver-espelho" data-id="${s.id}">Folha de ponto</button></td></tr>`).join('')}
       </tbody></table>${linhas.length ? '' : '<div class="vazio">Nenhum servidor em atividade.</div>'}</div>
       <p class="sub">Conta até ontem; hoje ainda está em andamento. Quem tem falta ou pendência aparece primeiro.</p></div>`
   },
@@ -290,8 +290,8 @@ const TELAS = {
     const pend = S.pedidos.filter(j => j.status === 'pendente'), dec = S.pedidos.filter(j => j.status !== 'pendente').slice(0, 30)
     return cabecalho(S.perfil.papel === 'chefe' ? setorNome(S.perfil.setor_id) : 'Recursos Humanos', 'Pedidos de justificativa') +
       `<div class="card"><h3>Esperando resposta <small>${pend.length}</small></h3>${listaPedidos(pend, true) || '<div class="vazio">Nenhum pedido esperando resposta.</div>'}
-        <p class="sub">Aprovou "esqueci de bater" → vira batida no espelho, marcada com ✎. Aprovou um abono → os dias do período deixam de contar falta e atraso.
-        Para lançar férias ou licença, abra o espelho do servidor em Frequência.</p></div>
+        <p class="sub">Aprovou "esqueci de bater" → vira batida na folha de ponto, marcada com ✎. Aprovou um abono → os dias do período deixam de contar falta e atraso.
+        Para lançar férias ou licença, abra a folha de ponto do servidor em Frequência.</p></div>
       <div class="card" style="margin-top:14px"><h3>Respondidos recentemente</h3>${listaPedidos(dec, true) || '<div class="vazio">Nada ainda.</div>'}</div>`
   },
 
@@ -427,7 +427,7 @@ function htmlEspelho(s) {
   const par = (p, dia) => `${p.ent ? hhmm(p.ent) : '?'}–${p.sai ? hhmm(p.sai) + (diaLocal(new Date(p.sai * 6e4).toISOString()) > dia ? ' <span class="sub">(+1)</span>' : '') : '…'}` +
     (p.aj ? ' <span class="sub" title="Batida de ajuste (lançada pelo RH ou pedido aprovado)">✎</span>' : '')
   return `<div class="espelho"><div class="esp-topo"><div><b>${esc(s.nome)}</b> · matrícula ${esc(s.matricula)}<div class="sub">${esc(s.cargo)}${s.cargo ? ' · ' : ''}${esc(setorNome(s.setor_id))} · ${esc(jornada(s) || 'sem horário definido')}${turno ? ` (${hora(turno.entrada)}–${hora(turno.saida)})` : ''}</div></div>
-      <div class="sub" style="text-align:right">${esc(NOME_INSTITUICAO)}<br>Espelho de ponto · ${nomeMes}</div></div>
+      <div class="sub" style="text-align:right">${esc(NOME_INSTITUICAO)}<br>Folha de ponto · ${nomeMes}</div></div>
     <div class="grid g4" style="margin:12px 0">
       <div class="stat"><b>${duracao(tot.previsto)}</b><span>previsto até ontem</span></div><div class="stat"><b>${duracao(tot.trabalhado)}</b><span>trabalhado</span></div>
       <div class="stat ${tot.saldo < 0 ? 'bad' : 'ok'}"><b>${duracao(tot.saldo)}</b><span>saldo</span></div>
@@ -442,7 +442,7 @@ function htmlEspelho(s) {
 }
 function telaEspelho(s, voltar) {
   const papel = S.perfil.papel, decide = ['rh', 'chefe'].includes(papel), meus = S.pedidos.filter(j => j.servidor_id === s.id)
-  return cabecalho('Espelho de ponto', s.nome, `${voltar ? '<button class="btn ghost" data-a="voltar-espelho">← Frequência</button>' : ''}
+  return cabecalho('Folha de ponto', s.nome, `${voltar ? '<button class="btn ghost" data-a="voltar-espelho">← Frequência</button>' : ''}
       <input type="month" data-mes value="${mesAtual()}" aria-label="Mês" style="width:auto"><button class="btn" data-a="imprimir-espelho" data-id="${s.id}">Imprimir</button>`) +
     (papel === 'prefeito' ? '' : `<div class="grid g2" style="margin-bottom:14px">${formJustificativa(s)}
       <div class="card"><h3>${decide ? 'Justificativas' : 'Meus pedidos'} <small>${meus.length}</small></h3>${listaPedidos(meus, decide) || '<div class="vazio">Nenhum pedido ainda.</div>'}</div></div>`) +
