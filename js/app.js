@@ -10,9 +10,9 @@ const hoje = () => new Date().toLocaleDateString('sv-SE', {timeZone: 'America/Ma
 const dataBR = d => d ? d.split('-').reverse().join('/') : ''
 
 const ABAS = {
-  rh: [['servidores', 'Servidores'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos'], ['setores', 'Setores'], ['horarios', 'Horários'], ['acessos', 'Acessos'], ['importar', 'Importar planilha']],
-  prefeito: [['servidores', 'Servidores'], ['espelho', 'Frequência']],
-  chefe: [['servidores', 'Minha equipe'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos'], ['acessos', 'Acessos']],
+  rh: [['painel', 'Painel'], ['servidores', 'Servidores'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos'], ['setores', 'Setores'], ['horarios', 'Horários'], ['acessos', 'Acessos'], ['importar', 'Importar planilha']],
+  prefeito: [['painel', 'Painel'], ['servidores', 'Servidores'], ['espelho', 'Frequência']],
+  chefe: [['painel', 'Painel'], ['servidores', 'Minha equipe'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos'], ['acessos', 'Acessos']],
   servidor: [['ponto', 'Meu ponto'], ['meu', 'Meu cadastro']],
   totem: [['totem', 'Totem']],
 }
@@ -32,6 +32,7 @@ async function q(p) { const {data, error} = await p; if (error) throw new Error(
 /* ============================== dados ============================== */
 const COLS_SERV = 'id, matricula, nome, cargo, setor_id, turno_id, escala_id, escala_inicio, situacao, desligado_em, vinculo, admissao'
 async function carregar() {
+  if (S.aba === 'painel') S.mes = null   // o painel é sempre o mês de hoje
   const p = S.perfil.papel, rh = p === 'rh', gestor = rh || p === 'chefe'
   const [setores, turnos, escalas, feriados, servidores, pessoais, perfis, convites, bat] = await Promise.all([
     q(sb.from('setores').select('*').order('nome')), q(sb.from('turnos').select('*').order('nome')), q(sb.from('escalas').select('*').order('nome')),
@@ -39,7 +40,7 @@ async function carregar() {
     p === 'totem' ? [] : q(sb.from('servidores').select(COLS_SERV).order('nome')),
     gestor ? q(sb.rpc('dados_pessoais')) : [], rh ? q(sb.from('perfis').select('*').order('nome')) : [],
     gestor ? q(sb.from('convites').select('*').order('criado_em', {ascending: false})) : [],
-    ['espelho', 'ponto'].includes(S.aba) ? batidasDoMes(mesAtual()) : []])
+    ['espelho', 'ponto', 'painel'].includes(S.aba) ? batidasDoMes(mesAtual()) : []])
   const pes = Object.fromEntries(pessoais.map(x => [x.id, x]))
   servidores.forEach(s => Object.assign(s, pes[s.id] || {}))
   S.d = {setores, turnos, escalas, feriados, servidores, perfis, convites}
@@ -206,6 +207,64 @@ const TELAS = {
           ${rh ? `<td><button class="btn ghost sm" data-a="editar" data-id="${s.id}">Editar</button></td>` : ''}</tr>`).join('')}
       </tbody></table>${lista.length ? '' : '<div class="vazio">Nenhum servidor encontrado.</div>'}</div>
       <p class="sub">${lista.length} servidor(es).${rh ? ' Desligou o servidor → o crachá dele para de funcionar em todos os totens na hora.' : ''}</p></div>`
+  },
+
+  // Painel "Hoje": quem devia vir, quem chegou, quem falta, o totem e as pendências. Mesmas regras do espelho.
+  painel() {
+    const hj = hoje(), agora = Math.round(Date.now() / 6e4), d0 = inicioDia(hj), papel = S.perfil.papel, cad = {...S.d, justificativas: S.just}
+    const linhas = S.d.servidores.filter(s => s.situacao === 'ativo').map(s => {
+      const e = espelhoMes(s, S.bat, hj.slice(0, 7), cad, hj, agora), d = e.dias.find(x => x.dia === hj)
+      const ent = e.turno ? toMin(e.turno.entrada) : null, chegou = !!d?.pares.some(p => p.ent)
+      const sai = e.turno ? toMin(e.turno.saida) + (toMin(e.turno.saida) <= ent ? 1440 : 0) : null
+      const abono = d?.oc.find(o => o[1] === 'green')?.[0], previsto = !!d?.prev && !abono
+      const faltou = previsto && !chegou && agora > d0 + sai   // o turno já acabou e não veio
+      const atrasado = previsto && !faltou && (d.oc.some(o => o[0].startsWith('Atraso')) || (!chegou && agora > d0 + ent + e.turno.tolerancia_min))
+      return {s, tot: e.tot, ent, chegou, abono, previsto, atrasado, faltou}
+    })
+    const prev = linhas.filter(l => l.previsto), chegaram = prev.filter(l => l.chegou), faltam = prev.filter(l => !l.chegou).sort((a, b) => a.ent - b.ent)
+    const atrasados = prev.filter(l => l.atrasado), abonados = linhas.filter(l => l.abono), fora = S.d.servidores.filter(s => ['ferias', 'afastado'].includes(s.situacao))
+    const nome = Object.fromEntries(S.d.servidores.map(s => [s.id, s]))
+    const hojeBat = S.bat.filter(b => diaLocal(b.em) === hj).sort((a, b) => minAbs(b.em) - minAbs(a.em))
+    const ultTotem = S.bat.filter(b => b.origem === 'totem').reduce((m, b) => Math.max(m, minAbs(b.em)), 0)
+    const minLocal = agora - d0, horario = minLocal >= 7 * 60 && minLocal <= 18 * 60
+    const semTotem = prev.length && horario && (!ultTotem || agora - ultTotem > 180)
+    const pend = S.pedidos.filter(j => j.status === 'pendente').length, semSaida = linhas.reduce((t, l) => t + l.tot.pendencias, 0)
+    const faltasMes = linhas.reduce((t, l) => t + l.tot.faltas, 0), dia = +hj.slice(8)
+    const mesPassado = new Date(Date.UTC(+hj.slice(0, 4), +hj.slice(5, 7) - 2, 15)).toLocaleDateString('pt-BR', {month: 'long', timeZone: 'UTC'})
+    const stat = (n, t, cls = '') => `<div class="card stat ${cls}"><b>${n}</b><span>${t}</span></div>`
+    const ha = m => m < 60 ? `há ${m} min` : m < 1440 ? `há ${Math.floor(m / 60)} h ${m % 60} min` : `há ${Math.floor(m / 1440)} dia${m >= 2880 ? 's' : ''}`
+    const quando = m => { const d = diaLocal(new Date(m * 6e4).toISOString()); return (d === hj ? 'hoje' : dataBR(d)) + ' às ' + hhmm(m) }
+    const unidade = papel === 'chefe' ? setorNome(S.perfil.setor_id) : 'Todas as unidades'
+    const porSetor = papel === 'chefe' ? '' : (() => {
+      const g = S.d.setores.map(st => { const ls = prev.filter(l => l.s.setor_id === st.id)
+        return {st, prev: ls.length, ok: ls.filter(l => l.chegou).length, falta: ls.filter(l => !l.chegou).length, atraso: ls.filter(l => l.atrasado).length,
+          pedidos: S.pedidos.filter(j => j.status === 'pendente' && nome[j.servidor_id]?.setor_id === st.id).length} })
+        .filter(x => x.prev || x.pedidos).sort((a, b) => b.falta - a.falta)
+      const n = (v, c) => v ? `<span class="pill ${c}">${v}</span>` : '0'
+      return `<div class="card" style="margin-top:14px"><h3>Por unidade <small>${g.length}</small></h3><div class="tabela"><table><thead><tr><th>Unidade</th><th>Previstos</th><th>Chegaram</th><th>Não chegaram</th><th>Atrasados</th><th>Pedidos</th></tr></thead><tbody>
+        ${g.map(x => `<tr><td>${esc(x.st.nome)}</td><td>${x.prev}</td><td>${x.ok}</td><td>${n(x.falta, 'red')}</td><td>${n(x.atraso, 'amber')}</td><td>${n(x.pedidos, 'blue')}</td></tr>`).join('')}
+        </tbody></table>${g.length ? '' : '<div class="vazio">Ninguém previsto hoje.</div>'}</div></div>`
+    })()
+    const titulo = 'Hoje, ' + new Date(Date.parse(hj + 'T12:00:00Z')).toLocaleDateString('pt-BR', {weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC'})
+    return cabecalho(unidade, titulo, `<span class="sub">Atualiza sozinho a cada minuto · ${hhmm(agora)}</span>`) +
+      (semTotem ? `<div class="msg erro">O totem ${ultTotem ? `não envia batida ${ha(agora - ultTotem)}` : 'ainda não enviou nenhuma batida'}. Confira se o tablet está ligado, com bateria e internet.</div>` : '') +
+      `<div class="grid g4">${stat(prev.length, 'previstos hoje')}${stat(chegaram.length, 'já chegaram', 'ok')}
+        ${stat(atrasados.length, 'atrasados', atrasados.length ? 'warn' : 'ok')}${stat(faltam.length, faltam.some(l => !l.faltou) ? 'ainda não chegaram' : 'não vieram hoje', faltam.length ? 'bad' : 'ok')}</div>
+      <div class="grid g2" style="margin-top:14px">
+        <div class="card"><h3>Ainda não chegou <small>${faltam.length}</small></h3>
+          ${faltam.map(l => `<div class="row"><div><b>${esc(l.s.nome)}</b><div class="sub">${papel === 'chefe' ? '' : esc(setorNome(l.s.setor_id)) + ' · '}${esc(jornada(l.s))} · entra ${hhmm(d0 + l.ent)}</div></div>
+            ${l.faltou ? '<span class="pill red">faltou hoje</span>' : l.atrasado ? '<span class="pill amber">atrasado</span>' : '<span class="pill">ainda no horário</span>'}</div>`).join('') || '<div class="vazio">Todo mundo que devia vir já chegou.</div>'}
+          ${abonados.length || fora.length ? `<p class="sub" style="margin-top:10px">Não contam hoje: ${[...abonados.map(l => `${esc(l.s.nome)} (${esc(l.abono)})`), ...fora.map(s => `${esc(s.nome)} (${SITUACAO[s.situacao][0].toLowerCase()})`)].join(', ')}.</p>` : ''}</div>
+        <div class="card"><h3>Últimas batidas de hoje <small>${hojeBat.length}</small></h3>
+          ${hojeBat.slice(0, 8).map(b => `<div class="row"><div><b>${hhmm(minAbs(b.em))}</b> ${esc(nome[b.servidor_id]?.nome || '')}${b.origem === 'ajuste' ? ' <span class="sub">✎</span>' : ''}</div>
+            <span class="pill ${b.tipo === 'entrada' ? 'green' : 'blue'}">${b.tipo === 'entrada' ? 'entrada' : 'saída'}</span></div>`).join('') || '<div class="vazio">Nenhuma batida hoje ainda.</div>'}
+          <p class="sub" style="margin-top:10px">${ultTotem ? `Última batida pelo totem: ${quando(ultTotem)} (${ha(agora - ultTotem)}).` : 'O totem ainda não enviou batidas neste mês.'}</p></div></div>
+      <div class="card" style="margin-top:14px"><h3>Pendências do mês</h3>
+        <div class="row"><div><b>Pedidos de justificativa esperando resposta</b></div>${papel === 'prefeito' ? `<b>${pend}</b>` : `<a class="btn ${pend ? '' : 'ghost'} sm" href="#pedidos">${pend} · ver</a>`}</div>
+        <div class="row"><div><b>Batidas sem saída</b><div class="sub">alguém esqueceu de bater a saída</div></div><a class="btn ${semSaida ? '' : 'ghost'} sm" href="#espelho">${semSaida} · ver</a></div>
+        <div class="row"><div><b>Faltas no mês</b><div class="sub">sem justificativa aprovada</div></div><a class="btn ${faltasMes ? '' : 'ghost'} sm" href="#espelho">${faltasMes} · ver</a></div>
+        ${dia <= 5 && papel !== 'prefeito' ? `<div class="msg info" style="margin:10px 0 0">Até o dia 5: confira a frequência de <b>${mesPassado}</b> (justificativas e batidas sem saída) e envie ao RH.</div>` : ''}
+      </div>${porSetor}`
   },
 
   espelho() {
@@ -656,7 +715,7 @@ function ligarEventos() {
   })
   addEventListener('hashchange', () => {
     S.aba = location.hash.slice(1); S.edit = null; S.msg = null; S.convite = null; S.esp = null
-    if (S.perfil && ['espelho', 'ponto'].includes(S.aba)) executar(async () => {}); else render()   // espelho busca as batidas
+    if (S.perfil && ['espelho', 'ponto', 'painel'].includes(S.aba)) executar(async () => {}); else render()   // espelho e painel buscam as batidas
   })
 }
 
@@ -666,4 +725,6 @@ async function iniciar(cliente) {
   const {data} = await sb.auth.getSession()
   if (data.session) await executar(() => entrou(data.session.user))
   else render()
+  // painel aberto: atualiza sozinho a cada minuto (não atrapalha ninguém digitando)
+  setInterval(() => { if (S.perfil && S.aba === 'painel' && !document.hidden && !document.activeElement?.matches?.('input, select, textarea')) executar(async () => {}) }, 60e3)
 }
