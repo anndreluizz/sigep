@@ -78,3 +78,22 @@ tr.off td{color:var(--muted)}
   .assinaturas div{border-top:1px solid #000;padding-top:4px}
 }
 main.wrap{padding-top:22px;padding-bottom:30px}
+
+/* ---------- formulários em etapas (js/etapas.js · mesmo bloco no TNT Esportes) ---------- */
+.et-oculto{display:none!important}
+.et-escondido{position:absolute!important;opacity:0;pointer-events:none;width:1px!important;height:1px;overflow:hidden}
+.et-progresso{margin-bottom:4px}
+.et-topo{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--muted);margin-bottom:6px}
+.et-topo b{color:var(--g9);font-size:13px}
+.et-ok{color:var(--goldink);font-weight:600}
+.et-trilho{height:8px;border-radius:9px;background:var(--g1);overflow:hidden}
+.et-trilho i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--g7),var(--gold));transition:width .3s}
+.et-nav{display:flex;gap:8px}.et-nav [hidden]{display:none}.et-nav .btn:last-child{margin-left:auto}
+.et-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.et-chip{border:1px solid var(--line);background:#fff;color:var(--g8);border-radius:99px;padding:6px 13px;font:600 13.5px/1.2 inherit;font-family:inherit;cursor:pointer;min-height:36px}
+.et-chip:hover{border-color:var(--g7)}
+.et-chip[aria-checked=true]{background:var(--g7);border-color:var(--g7);color:#fff}
+.et-chip:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.et-invalido>input,.et-invalido>select,.et-invalido>textarea,.et-invalido input:invalid{border-color:var(--red);background:var(--redbg)}
+.et-erro{color:var(--red);font-size:12.5px;font-weight:600;margin-top:4px}
+.et-geral{background:var(--redbg);padding:9px 12px;border-radius:9px;margin:0}

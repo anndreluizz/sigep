@@ -279,12 +279,12 @@ const TELAS = {
       <h3 style="margin-top:16px">${t.id ? 'Editar turno' : 'Novo turno'}</h3>
       <form class="f" data-f="turno" data-id="${t.id || ''}">
         <label class="span2">Nome<input name="nome" required value="${esc(t.nome)}" placeholder="Ex.: Matutino"></label>
-        <label>Entrada<input name="entrada" type="time" required value="${hora(t.entrada) || ''}"></label>
-        <label>Saída<input name="saida" type="time" required value="${hora(t.saida) || ''}"></label>
+        <label>Entrada<input name="entrada" type="time" required value="${hora(t.entrada) || ''}" data-opcoes="07:00|13:00|19:00"></label>
+        <label>Saída<input name="saida" type="time" required value="${hora(t.saida) || ''}" data-opcoes="11:00|11:30|17:00|19:00|07:00"></label>
         <label>Saída p/ almoço (opcional)<input name="saida_almoco" type="time" value="${hora(t.saida_almoco) || ''}"></label>
         <label>Volta do almoço<input name="retorno_almoco" type="time" value="${hora(t.retorno_almoco) || ''}"></label>
-        <label>Tolerância de atraso (min)<input name="tolerancia_min" type="number" min="0" max="120" value="${t.tolerancia_min ?? 10}"></label>
-        <label>Tolerância de saída (min)<input name="tolerancia_saida_min" type="number" min="0" max="120" value="${t.tolerancia_saida_min ?? 10}"></label>
+        <label>Tolerância de atraso (min)<input name="tolerancia_min" type="number" min="0" max="120" value="${t.tolerancia_min ?? 10}" data-opcoes="5|10|15"></label>
+        <label>Tolerância de saída (min)<input name="tolerancia_saida_min" type="number" min="0" max="120" value="${t.tolerancia_saida_min ?? 10}" data-opcoes="5|10|15"></label>
         <fieldset class="span2 acoes" style="border:0;padding:0;margin:0"><legend class="sub">Dias de trabalho</legend>
           ${DIAS.map((n, i) => `<label style="flex-direction:row;align-items:center"><input type="checkbox" name="dia" value="${i}" style="width:auto" ${dias.includes(i) ? 'checked' : ''}>${n}</label>`).join('')}</fieldset>
         <div class="acoes span2"><button class="btn">${t.id ? 'Salvar' : 'Adicionar turno'}</button>${t.id ? '<button type="button" class="btn ghost" data-a="cancelar">Cancelar</button>' : ''}</div>
@@ -387,10 +387,10 @@ function formJustificativa(s) {
     <form class="f" data-f="justificativa" data-id="${s.id}">
       <label class="span2">O que aconteceu<select name="tipo" data-jtipo>${opcoes(Object.entries(TIPOS_J), t)}</select></label>
       ${t === 'batida'
-        ? `<label>Dia<input name="dia" type="date" required max="${hoje()}"></label><label>Hora em que chegou ou saiu<input name="hora" type="time" required></label>
+        ? `<label>Dia<input name="dia" type="date" required max="${hoje()}" data-opcoes="hoje|ontem"></label><label>Hora em que chegou ou saiu<input name="hora" type="time" required data-opcoes="07:00|11:00|13:00|17:00"></label>
            <label>Era a<select name="batida_tipo">${opcoes([['entrada', 'Entrada'], ['saida', 'Saída']], 'entrada')}</select></label>`
-        : `<label>De<input name="inicio" type="date" required></label><label>Até<input name="fim" type="date" required></label>`}
-      <label class="span2">Explique<textarea name="motivo" required minlength="5" maxlength="500" rows="2" placeholder="${t === 'batida' ? 'Ex.: o totem estava sem bateria' : 'Ex.: consulta no posto de saúde'}"></textarea></label>
+        : `<label>De<input name="inicio" type="date" required data-opcoes="hoje|ontem"></label><label>Até<input name="fim" type="date" required data-opcoes="hoje|ontem"></label>`}
+      <label class="span2">Explique<textarea name="motivo" required minlength="5" maxlength="500" rows="2" placeholder="${t === 'batida' ? 'Ex.: o totem estava sem bateria' : 'Ex.: consulta no posto de saúde'}" data-opcoes="${t === 'batida' ? 'Esqueci de bater o ponto|Esqueci o crachá|Totem sem internet' : 'Consulta médica|Reunião na Secretaria|Curso de formação'}"></textarea></label>
       ${t === 'atestado' ? '<p class="sub span2">Entregue o atestado em papel ao RH.</p>' : ''}
       <div class="acoes span2"><button class="btn">${lanca ? 'Lançar (já aprovado)' : 'Enviar pedido'}</button></div>
     </form>${lanca ? '' : '<p class="sub">Sua chefia ou o RH responde. A resposta aparece aqui.</p>'}</div>`
@@ -415,7 +415,7 @@ function formServidor() {
     <form class="f" data-f="servidor">
       <label>Matrícula<input name="matricula" required maxlength="20" value="${esc(s.matricula)}"></label>
       <label class="span2">Nome completo<input name="nome" required minlength="3" value="${esc(s.nome)}"></label>
-      <label>Cargo<input name="cargo" value="${esc(s.cargo)}"></label>
+      <label>Cargo<input name="cargo" value="${esc(s.cargo)}" data-opcoes="Professor(a)|Merendeira|Vigia|Aux. serviços gerais|Secretário(a) escolar"></label>
       <label>Setor<select name="setor_id" required>${opcoes(S.d.setores.map(x => [x.id, x.nome]), s.setor_id, 'Escolha')}</select></label>
       <label>Horário<select name="jornada">${opcoes(jornadas, jor, 'Sem horário definido')}</select></label>
       <label>Início da escala (1º dia de trabalho)<input name="escala_inicio" type="date" value="${s.escala_inicio || ''}"></label>
@@ -504,7 +504,7 @@ const FORMS = {
     delete d.jornada
     Object.assign(d, {turno_id: tipo === 't' ? id : null, escala_id: tipo === 'e' ? id : null, cpf: d.cpf?.replace(/\D/g, '') || null, cargo: d.cargo || ''})
     if (!d.escala_id) d.escala_inicio = null
-    else if (!d.escala_inicio) throw new Error('Informe o início da escala (o primeiro dia de trabalho do ciclo).')
+    else if (!d.escala_inicio) throw erroCampo('Informe o início da escala (o primeiro dia de trabalho do ciclo).', 'escala_inicio')
     if (S.edit === 'novo') await q(sb.from('servidores').insert(d))
     else await q(sb.from('servidores').update(d).eq('id', S.edit))
     S.edit = null; return ['ok', 'Servidor salvo.']
@@ -518,8 +518,8 @@ const FORMS = {
   async turno(f) {
     const d = vazioNull(dadosForm(f)); delete d.dia
     d.dias_semana = new FormData(f).getAll('dia').map(Number)
-    if (!d.dias_semana.length) throw new Error('Marque pelo menos um dia de trabalho.')
-    if (!d.saida_almoco !== !d.retorno_almoco) throw new Error('Preencha a saída e a volta do almoço, ou deixe as duas em branco.')
+    if (!d.dias_semana.length) throw erroCampo('Marque pelo menos um dia de trabalho.', 'dia')
+    if (!d.saida_almoco !== !d.retorno_almoco) throw erroCampo('Preencha a saída e a volta do almoço, ou deixe as duas em branco.', 'retorno_almoco')
     if (f.dataset.id) await q(sb.from('turnos').update(d).eq('id', f.dataset.id))
     else await q(sb.from('turnos').insert(d))
     S.edit = null; return ['ok', 'Turno salvo.']
@@ -527,7 +527,7 @@ const FORMS = {
   async escala(f) { await q(sb.from('escalas').insert(dadosForm(f))); return ['ok', 'Escala salva.'] },
   async justificativa(f) {
     const d = dadosForm(f), batida = d.tipo === 'batida'
-    if (!batida && d.fim < d.inicio) throw new Error('A data final é antes da inicial.')
+    if (!batida && d.fim < d.inicio) throw erroCampo('A data final é antes da inicial.', 'fim')
     const j = await q(sb.rpc('pedir_justificativa', {p_servidor: f.dataset.id, p_tipo: d.tipo, p_inicio: batida ? null : d.inicio, p_fim: batida ? null : d.fim,
       p_motivo: d.motivo, p_batida_tipo: batida ? d.batida_tipo : null, p_batida_em: batida ? `${d.dia}T${d.hora}:00-04:00` : null}))
     return ['ok', j.status === 'aprovada' ? 'Justificativa lançada e aprovada.' : 'Pedido enviado. Sua chefia ou o RH vai responder.']
@@ -591,15 +591,20 @@ const ACOES = {
 }
 
 // depois de cada ação: recarrega do banco e redesenha (false = só redesenha, sem recarregar)
-async function executar(f) {
+// form: o formulário que disparou. Se der erro, ele fica na tela, preenchido, com o erro no campo certo (js/etapas.js).
+async function executar(f, form) {
   try {
     const r = await f()
     if (r === false) return render()
     S.msg = Array.isArray(r) ? r : null
     if (S.perfil) await carregar()
-  } catch (e) { S.msg = ['erro', e.message] }
+  } catch (e) {
+    if (form && typeof Etapas !== 'undefined' && Etapas.erro(form, e.message, e.campo)) return
+    S.msg = ['erro', e.message]
+  }
   render()
 }
+const erroCampo = (msg, campo) => Object.assign(new Error(msg), {campo})
 
 async function entrou(user) {
   S.email = user.email
@@ -612,7 +617,7 @@ function ligarEventos() {
   document.addEventListener('submit', ev => {
     const f = ev.target.closest('form[data-f]'); if (!f) return
     ev.preventDefault()
-    executar(() => FORMS[f.dataset.f](f, ev))
+    executar(() => FORMS[f.dataset.f](f, ev), f)
   })
   document.addEventListener('click', ev => {
     const el = ev.target.closest('[data-a]'); if (!el || el.type === 'file') return
