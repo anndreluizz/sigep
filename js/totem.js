@@ -112,7 +112,7 @@ function iniciarTotem(sb) {
     if (!r.ok) return resposta(false, 'Não foi possível registrar', r.erro)
     if (r.guardada) return resposta(true, `Batida guardada às ${hora}`, 'Sem internet agora. O totem envia sozinho quando voltar.')
     const d = r.dados, h = new Date(d.em).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})
-    resposta(true, d.nome, `${d.tipo === 'entrada' ? 'Entrada' : 'Saída'} registrada às ${h}${d.tipo === 'entrada' ? ' · bom trabalho!' : ' · até logo!'}`)
+    resposta(true, d.nome, `${d.tipo === 'entrada' ? 'Entrada' : 'Saída'} registrada às ${h}${d.vinculo ? ` · ${d.vinculo}` : ''}${d.tipo === 'entrada' ? ' · bom trabalho!' : ' · até logo!'}`)
   }
 
   function quadro() {

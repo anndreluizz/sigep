@@ -50,10 +50,13 @@ await entrar('rh@demo'); run(`S.aba = 'servidores'`)
 const escola = '10000000-0000-4000-8000-000000000001', matutino = '20000000-0000-4000-8000-000000000001', vigia = '30000000-0000-4000-8000-000000000001'
 run(`S.edit = 'novo'`)
 await form('servidor', [['matricula', '0200'], ['nome', 'João Batista Rocha'], ['cargo', 'Merendeiro'], ['setor_id', escola], ['jornada', 't:' + matutino],
-  ['escala_inicio', ''], ['vinculo', 'contratado'], ['admissao', '2026-02-01'], ['cpf', '123.456.789-01'], ['telefone', ''], ['situacao', 'ativo']])
+  ['escala_inicio', ''], ['vinculo', 'contratado'], ['admissao', '2026-02-01'], ['cpf', '111.444.777-35'], ['telefone', ''], ['situacao', 'ativo']])
 ok(msg()?.[0] === 'ok', 'cadastra servidor: ' + msg()?.[1])
 const joao = run(`S.d.servidores.find(s => s.matricula === '0200')`)
-ok(joao?.cpf === '12345678901' && joao.turno_id === matutino && joao.codigo?.length === 32, 'CPF só números, turno e código do crachá')
+ok(joao?.cpf === '11144477735' && joao.turno_id === matutino && joao.codigo?.length === 32, 'CPF só números, turno e código do crachá')
+run(`S.edit = 'novo'`)   // segundo vínculo da Ana (mesmo CPF) no mesmo horário: salva, mas avisa do acúmulo
+await form('servidor', [['matricula', '0101-B'], ['nome', 'Ana Paula Ferreira'], ['setor_id', escola], ['jornada', 't:' + matutino], ['escala_inicio', ''], ['cpf', '123.456.789-01']])
+ok(msg()?.[1]?.includes('vínculos da mesma pessoa') && msg()?.[1]?.includes('se cruza'), 'mesmo CPF: avisa que é outro vínculo e que o horário se cruza')
 run(`S.edit = 'novo'`)
 await form('servidor', [['matricula', '0200'], ['nome', 'Outro Nome'], ['setor_id', escola], ['jornada', '']])
 ok(msg()?.[1]?.includes('repetido'), 'matrícula repetida: ' + msg()?.[1])

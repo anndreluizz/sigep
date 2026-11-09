@@ -211,6 +211,25 @@ r = await pedir(paulo.id, 'ferias', '2026-11-16', '2026-11-30', 'Férias regulam
 ok((await q(`select * from historico where tabela = 'justificativas'`)).length >= 5, 'justificativas vão pro histórico')
 await como(TOTEM); ok((await q('select id from justificativas')).length === 0, 'totem não vê justificativas')
 
+// ---------- dois vínculos (mesmo CPF): um crachá serve para os dois, o totem escolhe o vínculo ----------
+await como(RH)
+const [vesp] = await q(`insert into turnos (nome, entrada, saida) values ('Vespertino', '13:00', '17:00') returning id`)
+const ana2 = await um(`insert into servidores (matricula, nome, cargo, setor_id, turno_id, cpf, vinculo) values ('0101-C', 'Ana Paula Ferreira', 'Professora', $1, $2, '12345678901', 'contratado') returning id`, [escola.id, vesp.id])
+const cAna2 = await codigo(ana2.id)
+const ontem = new Date(Date.now() - 4 * 36e5 - 864e5).toISOString().slice(0, 10)
+const idade = hm => Math.round((Date.now() - Date.parse(`${ontem}T${hm}:00-04:00`)) / 1000)
+await como(TOTEM)
+r = await bater(cAna, idade('06:55')); ok(r.tipo === 'entrada' && r.servidor_id === ana.id && r.vinculo?.includes('Matutino'), '06:55 com o crachá 1: entrada no vínculo da manhã')
+r = await bater(cAna2, idade('11:31')); ok(r.tipo === 'saida' && r.servidor_id === ana.id, '11:31 com o crachá 2: saída do vínculo da manhã (entrada aberta)')
+r = await bater(cAna, idade('12:58')); ok(r.tipo === 'entrada' && r.servidor_id === ana2.id && r.vinculo?.includes('Vespertino'), '12:58 com o crachá 1: entrada no vínculo da tarde')
+r = await bater(cAna, idade('17:02')); ok(r.tipo === 'saida' && r.servidor_id === ana2.id, '17:02: saída do vínculo da tarde')
+r = await bater(cMarta); ok(r.vinculo == null, 'quem tem um vínculo só não mostra vínculo')
+await como(SERV)
+ok((await q('select id from servidores')).length === 2, 'servidora vê os dois vínculos dela no Meu ponto')
+ok((await pedir(ana2.id, 'abono', '2026-11-04', '2026-11-04', 'Pedido no vínculo da tarde')).status === 'pendente', 'servidora pede justificativa no outro vínculo')
+await como(RH); await q(`update servidores set situacao = 'ferias' where id = $1`, [ana2.id])
+await como(TOTEM); r = await bater(cAna2); ok(r.servidor_id === ana.id, 'vínculo da tarde de férias: o crachá 2 cai no vínculo ativo')
+
 // desativar acesso
 await como(RH); await q('update perfis set ativo = false where id = $1', [TOTEM])
 await como(TOTEM); await erro('select registrar_batida($1)', [cMarta], 'não está autorizado', 'totem desativado pelo RH para na hora')

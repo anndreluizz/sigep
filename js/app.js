@@ -65,6 +65,14 @@ async function batidasDoMes(mes) {
 const setorNome = id => S.d.setores.find(s => s.id === id)?.nome || '—'
 const jornada = s => s.escala_id ? S.d.escalas.find(e => e.id === s.escala_id)?.nome : S.d.turnos.find(t => t.id === s.turno_id)?.nome || '—'
 const hora = t => t?.slice(0, 5)
+// vínculos da mesma pessoa = cadastros com o mesmo CPF (o banco usa a mesma regra no totem)
+const outrosVinculos = s => s.cpf ? S.d.servidores.filter(x => x.id !== s.id && x.cpf === s.cpf) : []
+function horariosSeCruzam(a, b) {   // dois turnos que trabalham no mesmo dia da semana e na mesma faixa de horário
+  const t = v => S.d.turnos.find(x => x.id === (v.turno_id || S.d.escalas.find(e => e.id === v.escala_id)?.turno_id))
+  const ta = t(a), tb = t(b); if (!ta || !tb || !ta.dias_semana.some(d => tb.dias_semana.includes(d))) return false
+  const faixa = x => { const e = toMin(x.entrada); let s = toMin(x.saida); if (s <= e) s += 1440; return [e, s] }
+  const [a0, a1] = faixa(ta), [b0, b1] = faixa(tb); return a0 < b1 && b0 < a1
+}
 const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 /* ============================== espelho de ponto ============================== */
@@ -202,7 +210,7 @@ const TELAS = {
         <th>Matrícula</th><th>Nome</th><th>Setor</th><th>Cargo</th><th>Horário</th><th>Situação</th>${rh ? '<th></th>' : ''}</tr></thead><tbody>
         ${lista.map(s => `<tr class="${s.situacao === 'desligado' ? 'off' : ''}">
           ${rh ? `<td><input type="checkbox" data-a="sel" data-id="${s.id}" aria-label="Selecionar ${esc(s.nome)}" ${S.sel.has(s.id) ? 'checked' : ''}></td>` : ''}
-          <td>${esc(s.matricula)}</td><td>${esc(s.nome)}</td><td>${esc(setorNome(s.setor_id))}</td><td>${esc(s.cargo)}</td><td>${esc(jornada(s))}</td>
+          <td>${esc(s.matricula)}</td><td>${esc(s.nome)}${outrosVinculos(s).length ? ` <span class="pill blue" title="Mesmo CPF: um crachá serve para os vínculos">${outrosVinculos(s).length + 1} vínculos</span>` : ''}</td><td>${esc(setorNome(s.setor_id))}</td><td>${esc(s.cargo)}</td><td>${esc(jornada(s))}</td>
           <td><span class="pill ${SITUACAO[s.situacao][1]}">${SITUACAO[s.situacao][0]}${s.desligado_em ? ' ' + dataBR(s.desligado_em) : ''}</span></td>
           ${rh ? `<td><button class="btn ghost sm" data-a="editar" data-id="${s.id}">Editar</button></td>` : ''}</tr>`).join('')}
       </tbody></table>${lista.length ? '' : '<div class="vazio">Nenhum servidor encontrado.</div>'}</div>
@@ -296,8 +304,11 @@ const TELAS = {
   },
 
   ponto() {
-    const s = S.d.servidores[0]
-    return s ? telaEspelho(s, false) : '<div class="card vazio">Cadastro não encontrado. Procure o RH.</div>'
+    const vs = S.d.servidores, s = vs.find(x => x.id === S.esp) || vs[0]
+    if (!s) return '<div class="card vazio">Cadastro não encontrado. Procure o RH.</div>'
+    const escolha = vs.length < 2 ? '' : `<div class="card" style="margin-bottom:14px"><b>Você tem ${vs.length} vínculos.</b> O mesmo crachá serve para todos; o totem sabe qual é pelo horário.
+      <div class="et-chips">${vs.map(v => `<button class="et-chip" data-a="ver-espelho" data-id="${v.id}" aria-checked="${v.id === s.id}">${esc(jornada(v))} · mat. ${esc(v.matricula)}${v.vinculo ? ' · ' + esc(v.vinculo) : ''}</button>`).join('')}</div></div>`
+    return escolha + telaEspelho(s, false)
   },
 
   meu() {
@@ -503,11 +514,11 @@ function formServidor() {
 
 /* ============================== crachás ============================== */
 function imprimirCrachas() {
-  const lista = S.d.servidores.filter(s => S.sel.has(s.id))
+  const vistos = new Set(), lista = S.d.servidores.filter(s => S.sel.has(s.id) && !(s.cpf && vistos.has(s.cpf)) && (vistos.add(s.cpf), true))
   const qr = txt => { const g = qrcode(0, 'M'); g.addData(txt); g.make(); return g.createSvgTag({cellSize: 4, margin: 0, scalable: true}) }
   $('#impressao').innerHTML = `<div class="folha">${lista.map(s => `<div class="cartao"><div class="furo"></div>
     <div class="topo">${esc(NOME_INSTITUICAO)}</div><div class="corpo"><div><div class="nome">${esc(s.nome)}</div>
-    <div class="cargo">${esc(s.cargo)}${s.cargo ? ' · ' : ''}${esc(setorNome(s.setor_id))}</div><div class="mat">Matrícula ${esc(s.matricula)}</div></div>
+    <div class="cargo">${esc(s.cargo)}${s.cargo ? ' · ' : ''}${esc(setorNome(s.setor_id))}</div><div class="mat">Matrícula ${[s, ...outrosVinculos(s)].map(v => esc(v.matricula)).join(' · ')}</div></div>
     ${qr(s.codigo)}</div></div>`).join('')}</div>`
   document.body.classList.add('imprimindo')
   print()
@@ -577,7 +588,12 @@ const FORMS = {
     else if (!d.escala_inicio) throw erroCampo('Informe o início da escala (o primeiro dia de trabalho do ciclo).', 'escala_inicio')
     if (S.edit === 'novo') await q(sb.from('servidores').insert(d))
     else await q(sb.from('servidores').update(d).eq('id', S.edit))
-    S.edit = null; return ['ok', 'Servidor salvo.']
+    S.edit = null
+    const outros = d.cpf ? S.d.servidores.filter(x => x.cpf === d.cpf && x.matricula !== d.matricula) : []
+    if (!outros.length) return ['ok', 'Servidor salvo.']
+    const choque = outros.find(o => horariosSeCruzam({...d}, o))
+    return [choque ? 'erro' : 'ok', `Servidor salvo. Mesmo CPF da matrícula ${outros.map(o => o.matricula).join(', ')}: são vínculos da mesma pessoa e um crachá serve para todos.` +
+      (choque ? ` ATENÇÃO: o horário se cruza com o da matrícula ${choque.matricula} (${jornada(choque)}). Acúmulo de cargos exige horários compatíveis.` : '')]
   },
   async setor(f) {
     const nome = dadosForm(f).nome
