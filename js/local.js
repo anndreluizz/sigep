@@ -1,7 +1,7 @@
 // Modo demonstração: imita o pedaço do supabase-js que o app usa, rodando o MESMO banco
 // (supabase/migrations) num Postgres dentro do navegador (PGlite). As regras (RLS) valem igual.
 // Serve para testar as telas sem conta no Supabase. Os dados somem ao recarregar a página.
-// ponytail: só o subconjunto do supabase-js que app.js usa (select/eq/in/order/insert/update/delete/rpc).
+// ponytail: só o subconjunto do supabase-js que app.js usa (select/eq/in/gte/lt/order/range/insert/update/delete/rpc).
 
 const MIGRACOES = ['20261109000000_inicial.sql']
 
@@ -34,18 +34,19 @@ async function criarClienteLocal(PGlite, lerMigracao) {
 
   function from(tabela) {
     ident(tabela)
-    const st = {op: 'select', cols: '*', filtros: [], ordem: [], dados: null, retorna: null}
+    const st = {op: 'select', cols: '*', filtros: [], ordem: [], dados: null, retorna: null, faixa: null}
     const where = p => st.filtros.length ? ' where ' + st.filtros.map(([c, op, v]) => {
       if (op === 'in') { p.push(v); return `${c} = any($${p.length})` }
       if (v === null) return `${c} is null`
-      p.push(v); return `${c} = $${p.length}`
+      p.push(v); return `${c} ${op} $${p.length}`
     }).join(' and ') : ''
     const valor = v => v !== null && typeof v === 'object' && !Array.isArray(v) ? JSON.stringify(v) : v
     const exec = () => {
       const p = []
       if (st.op === 'select')
         return comoUsuario(`select ${colunas(st.cols)} from ${tabela}${where(p)}` +
-          (st.ordem.length ? ' order by ' + st.ordem.map(([c, asc]) => `${c} ${asc ? 'asc' : 'desc'}`).join(', ') : ''), p)
+          (st.ordem.length ? ' order by ' + st.ordem.map(([c, asc]) => `${c} ${asc ? 'asc' : 'desc'}`).join(', ') : '') +
+          (st.faixa ? ` limit ${st.faixa[1] - st.faixa[0] + 1} offset ${st.faixa[0]}` : ''), p)
       const ret = st.retorna ? ` returning ${colunas(st.retorna)}` : ''
       if (st.op === 'insert') {
         const linhas = [].concat(st.dados), cols = Object.keys(linhas[0]).map(ident)
@@ -65,6 +66,9 @@ async function criarClienteLocal(PGlite, lerMigracao) {
       delete() { st.op = 'delete'; return b },
       eq(c, v) { st.filtros.push([ident(c), '=', v]); return b },
       in(c, v) { st.filtros.push([ident(c), 'in', v]); return b },
+      gte(c, v) { st.filtros.push([ident(c), '>=', v]); return b },
+      lt(c, v) { st.filtros.push([ident(c), '<', v]); return b },
+      range(de, ate) { st.faixa = [Number(de), Number(ate)]; return b },
       order(c, o = {}) { st.ordem.push([ident(c), o.ascending !== false]); return b },
       then(ok, falha) { return resultado(exec).then(ok, falha) },
     }
@@ -141,4 +145,19 @@ async function semearDemo(cliente) {
       ('00000000-0000-4000-8000-000000000005', 'Totem 1 – Escola', 'totem', '10000000-0000-4000-8000-000000000001', null);`)
 }
 
-if (typeof module !== 'undefined') module.exports = {criarClienteLocal, semearDemo}
+// só na demo.html (os testes do totem começam sem batidas)
+async function semearBatidasDemo(cliente) {
+  await cliente._db.exec(`
+    -- batidas do mês passado e deste mês até ontem (para o espelho ter o que mostrar): chega até 15 min depois do horário,
+    -- o Carlos falta na 1ª segunda-feira e esquece a saída na 1ª quarta, o Paulo sai 1 h antes às sextas
+    insert into batidas (servidor_id, tipo, em, origem, totem_id)
+    select s.id, x.tipo, ((d::date + x.h)::timestamp + make_interval(mins => x.var)) at time zone 'America/Manaus', 'totem', '00000000-0000-4000-8000-000000000005'
+    from servidores s join turnos t on t.id = s.turno_id
+    cross join generate_series(date_trunc('month', now() at time zone 'America/Manaus') - interval '1 month', (now() at time zone 'America/Manaus')::date - 1, '1 day') d
+    cross join lateral (values ('entrada', t.entrada, (random() * 22)::int - 7),
+      ('saida', t.saida - case when s.matricula = '0330' and extract(dow from d) = 5 then interval '1 hour' else interval '0' end, (random() * 10)::int)) x(tipo, h, var)
+    where extract(dow from d)::int = any(t.dias_semana)
+      and not (s.matricula = '0102' and extract(day from d) <= 7 and (extract(dow from d) = 1 or (extract(dow from d) = 3 and x.tipo = 'saida')));`)
+}
+
+if (typeof module !== 'undefined') module.exports = {criarClienteLocal, semearDemo, semearBatidasDemo}

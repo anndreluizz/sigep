@@ -111,5 +111,69 @@ await acao('importar')
 ok(msg()?.[1] === '2 servidor(es) importado(s).' && run(`S.d.setores.some(s => s.nome === 'Secretaria de Assistência Social')`), 'importa e cria o setor novo: ' + msg()?.[1])
 ok(run(`S.d.servidores.find(s => s.matricula === '0300').turno_id`) === matutino, 'turno pelo nome, sem diferenciar maiúsculas')
 
+// ---------- espelho de ponto: regras (função pura) ----------
+const esp = run('espelhoMes'), mat = {id: 'T1', entrada: '07:00:00', saida: '11:30:00', tolerancia_min: 10, tolerancia_saida_min: 10, dias_semana: [1, 2, 3, 4, 5]}
+const plant = {id: 'T2', entrada: '07:00:00', saida: '07:00:00', tolerancia_min: 10, tolerancia_saida_min: 10, dias_semana: [0, 1, 2, 3, 4, 5, 6]}
+const cad = {turnos: [mat, plant], escalas: [{id: 'E1', turno_id: 'T2', dias_trabalho: 1, dias_descanso: 3}], feriados: [{data: '2026-10-12', nome: 'Nossa Senhora Aparecida'}]}
+const bt = (sid, tipo, quando) => ({servidor_id: sid, tipo, em: quando + ':00-04:00'})
+const outubro = esp({id: 'A', turno_id: 'T1'}, [
+  bt('A', 'entrada', '2026-10-01T07:05'), bt('A', 'saida', '2026-10-01T11:30'),   // dentro da tolerância
+  bt('A', 'entrada', '2026-10-02T07:30'), bt('A', 'saida', '2026-10-02T11:30'),   // atraso de 30 min
+  bt('A', 'entrada', '2026-10-03T08:00'), bt('A', 'saida', '2026-10-03T10:00'),   // sábado
+  bt('A', 'entrada', '2026-10-05T07:00'),                                          // esqueceu a saída
+  bt('A', 'entrada', '2026-10-06T07:00'), bt('A', 'saida', '2026-10-06T10:00'),   // saiu antes
+  bt('OUTRO', 'entrada', '2026-10-07T07:00')], '2026-10', cad, '2026-11-09')
+const dia = d => outubro.dias.find(x => x.dia === d), ocs = d => dia(d).oc.map(o => o[0]).join(',')
+ok(outubro.dias.length === 31 && outubro.tot.previsto === 21 * 270, 'outubro: 21 dias úteis de 4h30 (feriado de 12/10 não conta): ' + outubro.tot.previsto)
+ok(outubro.tot.trabalhado === 265 + 240 + 120 + 180 && outubro.tot.saldo === outubro.tot.trabalhado - outubro.tot.previsto, 'trabalhado e saldo: ' + outubro.tot.trabalhado)
+ok(ocs('2026-10-01') === '' && ocs('2026-10-02') === 'Atraso 0h30', 'tolerância de 10 min; atraso de 30 min: ' + ocs('2026-10-02'))
+ok(ocs('2026-10-03') === 'Fora da escala' && ocs('2026-10-05') === 'Sem saída' && ocs('2026-10-06') === 'Saiu antes', 'sábado, sem saída, saiu antes')
+ok(ocs('2026-10-07') === 'Falta' && ocs('2026-10-12') === '' && ocs('2026-10-04') === '', 'falta (batida de outro servidor não conta), feriado e domingo sem falta')
+ok(outubro.tot.faltas === 17 && outubro.tot.atrasos === 1 && outubro.tot.pendencias === 1, `totais: ${outubro.tot.faltas} faltas, ${outubro.tot.atrasos} atraso, ${outubro.tot.pendencias} pendência`)
+const vig = esp({id: 'V', escala_id: 'E1', escala_inicio: '2026-11-01'}, [bt('V', 'entrada', '2026-11-01T07:00'), bt('V', 'saida', '2026-11-02T07:02')], '2026-11', cad, '2026-11-09')
+const vd = d => vig.dias.find(x => x.dia === d)
+ok(vd('2026-11-01').trab === 1442 && !vd('2026-11-01').oc.length && !vd('2026-11-02').pares.length, 'plantão 24 h: conta no dia da entrada, sem pendência')
+ok(!vd('2026-11-02').prev && !vd('2026-11-04').oc.length && vd('2026-11-05').oc[0]?.[0] === 'Falta' && vd('2026-11-09').prev && !vd('2026-11-09').oc.length,
+   'escala 24×72: folga sem falta, falta no próximo plantão, hoje ainda não é falta')
+ok(vig.tot.previsto === 2 * 1440, 'plantão previsto: 2 × 24 h até ontem')
+const agora = Math.round(Date.parse('2026-11-09T09:00:00-04:00') / 6e4)
+ok(esp({id: 'A', turno_id: 'T1'}, [bt('A', 'entrada', '2026-11-09T07:00')], '2026-11', cad, '2026-11-09', agora).dias[8].oc[0][0] === 'Em andamento', 'entrada de hoje sem saída: em andamento')
+const integral = {id: 'T3', entrada: '07:00:00', saida: '17:00:00', saida_almoco: '11:00:00', retorno_almoco: '13:00:00', tolerancia_min: 10, tolerancia_saida_min: 10, dias_semana: [1, 2, 3, 4, 5]}
+const alm = esp({id: 'R', turno_id: 'T3'}, [bt('R', 'entrada', '2026-10-01T07:00'), bt('R', 'saida', '2026-10-01T17:00'),
+  bt('R', 'entrada', '2026-10-02T07:00'), bt('R', 'saida', '2026-10-02T11:00'), bt('R', 'entrada', '2026-10-02T12:00'), bt('R', 'saida', '2026-10-02T17:00')],
+  '2026-10', {...cad, turnos: [integral]}, '2026-11-09').dias
+ok(alm[0].esperado === 480 && alm[0].trab === 480 && alm[1].trab === 540, `almoço: 2 batidas descontam o intervalo (${alm[0].trab}); 4 batidas contam o que bateu (${alm[1].trab})`)
+ok(esp({id: 'A', turno_id: 'T1', admissao: '2026-10-20'}, [], '2026-10', cad, '2026-11-09').tot.faltas === 9, 'antes da admissão não é falta')
+
+// ---------- espelho de ponto: telas, com batidas de verdade no banco ----------
+await cliente._db.query(`insert into batidas (servidor_id, tipo, em, origem, motivo) values
+  ('40000000-0000-4000-8000-000000000001', 'entrada', '2026-08-03 07:02-04', 'ajuste', 'teste do espelho'),
+  ('40000000-0000-4000-8000-000000000001', 'saida',   '2026-08-03 11:31-04', 'ajuste', 'teste do espelho'),
+  ('40000000-0000-4000-8000-000000000003', 'entrada', '2026-08-03 07:00-04', 'ajuste', 'teste do espelho')`)
+await entrar('rh@demo'); run(`S.mes = '2026-08'; S.aba = 'horarios'`)
+await form('feriado', [['data', '2026-08-12'], ['nome', 'Nossa Senhora Aparecida']]); ok(run('S.d.feriados.length') === 1, 'RH cadastra feriado: ' + msg()?.[1])
+run(`S.aba = 'espelho'; S.filtro.setor = ''`); await run('executar(async () => {})')
+ok(run('S.bat.length') === 3 && tela().includes('Frequência do mês') && tela().includes('Rita de Cássia'), 'RH: frequência de todos os setores')
+await acao('ver-espelho', {id: '40000000-0000-4000-8000-000000000001'})
+ok(tela().includes('07:02–11:31') && tela().includes('agosto de 2026') && tela().includes('Feriado: Nossa Senhora'), 'espelho da Ana: batidas, mês e feriado')
+await acao('imprimir-espelho', {id: '40000000-0000-4000-8000-000000000001'}); ok(els['#impressao'].innerHTML.includes('Chefia imediata'), 'impressão com assinaturas')
+await entrar('chefe@demo'); run(`S.mes = '2026-08'; S.aba = 'espelho'; S.esp = null`); await run('executar(async () => {})')
+ok(run('S.bat.length') === 2 && !tela().includes('Rita de Cássia'), 'chefe: só batidas e servidores da escola')
+await entrar('servidor@demo'); run(`S.mes = '2026-08'; S.aba = 'ponto'`); await run('executar(async () => {})')
+ok(run('S.bat.length') === 2 && tela().includes('Ana Paula') && tela().includes('07:02–11:31'), 'servidora: Meu ponto com as próprias batidas')
+for (const email of ['rh@demo', 'chefe@demo', 'prefeito@demo', 'servidor@demo']) {
+  await entrar(email); run(`S.mes = '2026-08'; S.esp = null`)
+  for (const aba of ['espelho', 'ponto'].filter(a => run('ABAS[S.perfil.papel]').some(x => x[0] === a))) {
+    run(`S.aba = '${aba}'`); await run('executar(async () => {})')
+    ok(!/undefined|NaN|\[object/.test(tela()) && !run('S.msg'), `tela ${email}/${aba}: ${run('S.msg')?.[1] || tela().match(/.{0,60}(undefined|NaN|\[object).{0,60}/)?.[0]}`)
+  }
+}
+
+// batidas de exemplo da demo.html: o SQL roda e o mês passado tem espelho com ocorrências
+await run('semearBatidasDemo')(cliente)
+await entrar('rh@demo'); run(`S.mes = null; S.esp = null; S.aba = 'espelho'`)
+const mesPassado = run('addDia(hoje().slice(0, 7) + "-01", -1).slice(0, 7)'); run(`S.mes = '${mesPassado}'`); await run('executar(async () => {})')
+ok(run('S.bat.length') > 100 && tela().includes('Carlos Eduardo') && /pill red">[1-9]/.test(tela()), `demo: batidas do mês passado (${run('S.bat.length')}) e faltas do Carlos`)
+
 console.log(`\n${total - falhas}/${total} verificações das telas ok`)
 process.exit(falhas ? 1 : 0)

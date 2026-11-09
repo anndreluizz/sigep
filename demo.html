@@ -28,7 +28,7 @@
 <script type="module">
 import {PGlite} from 'https://cdn.jsdelivr.net/npm/@electric-sql/pglite@0.5.15/dist/index.js'
 const cliente = await criarClienteLocal(PGlite, m => fetch('supabase/migrations/' + m).then(r => r.text()))
-await semearDemo(cliente)
+await semearDemo(cliente); await semearBatidasDemo(cliente)
 window.DICA_ENTRAR = 'Demonstração: entre com <b>rh@demo</b>, <b>chefe@demo</b>, <b>prefeito@demo</b>, <b>servidor@demo</b> ou <b>totem@demo</b>, senha <b>demo1234</b>.'
 await iniciar(cliente)
 </script>

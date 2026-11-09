@@ -1,17 +1,18 @@
 // SIGEP · telas. Tudo passa pelo banco (Supabase); as permissões são conferidas lá (RLS),
 // a tela só esconde o que o perfil não usa. `sb` é o cliente do Supabase (ou o local, na demonstração).
 let sb
-const S = {perfil: null, email: null, aba: null, d: {}, msg: null, edit: null, sel: new Set(), imp: null, filtro: {setor: '', busca: '', sit: 'ativos'}, convite: null}
+const S = {perfil: null, email: null, aba: null, d: {}, msg: null, edit: null, sel: new Set(), imp: null, filtro: {setor: '', busca: '', sit: 'ativos'}, convite: null,
+  mes: null, esp: null, bat: []}   // espelho: mês 'aaaa-mm', servidor aberto, batidas do mês
 const $ = s => document.querySelector(s)
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]))
 const hoje = () => new Date().toLocaleDateString('sv-SE', {timeZone: 'America/Manaus'})   // aaaa-mm-dd
 const dataBR = d => d ? d.split('-').reverse().join('/') : ''
 
 const ABAS = {
-  rh: [['servidores', 'Servidores'], ['setores', 'Setores'], ['horarios', 'Horários'], ['acessos', 'Acessos'], ['importar', 'Importar planilha']],
-  prefeito: [['servidores', 'Servidores']],
-  chefe: [['servidores', 'Minha equipe']],
-  servidor: [['meu', 'Meu cadastro']],
+  rh: [['servidores', 'Servidores'], ['espelho', 'Frequência'], ['setores', 'Setores'], ['horarios', 'Horários'], ['acessos', 'Acessos'], ['importar', 'Importar planilha']],
+  prefeito: [['servidores', 'Servidores'], ['espelho', 'Frequência']],
+  chefe: [['servidores', 'Minha equipe'], ['espelho', 'Frequência']],
+  servidor: [['ponto', 'Meu ponto'], ['meu', 'Meu cadastro']],
   totem: [['totem', 'Totem']],
 }
 const PAPEIS = {rh: 'RH', prefeito: 'Prefeito / Gabinete', chefe: 'Chefe de setor', servidor: 'Servidor', totem: 'Totem'}
@@ -31,19 +32,100 @@ async function q(p) { const {data, error} = await p; if (error) throw new Error(
 const COLS_SERV = 'id, matricula, nome, cargo, setor_id, turno_id, escala_id, escala_inicio, situacao, desligado_em, vinculo, admissao'
 async function carregar() {
   const p = S.perfil.papel, rh = p === 'rh'
-  const [setores, turnos, escalas, servidores, pessoais, perfis, convites] = await Promise.all([
+  const [setores, turnos, escalas, feriados, servidores, pessoais, perfis, convites, bat] = await Promise.all([
     q(sb.from('setores').select('*').order('nome')), q(sb.from('turnos').select('*').order('nome')), q(sb.from('escalas').select('*').order('nome')),
+    q(sb.from('feriados').select('*').order('data')),
     p === 'totem' ? [] : q(sb.from('servidores').select(COLS_SERV).order('nome')),
     rh ? q(sb.rpc('dados_pessoais')) : [], rh ? q(sb.from('perfis').select('*').order('nome')) : [],
-    rh ? q(sb.from('convites').select('*').order('criado_em', {ascending: false})) : []])
+    rh ? q(sb.from('convites').select('*').order('criado_em', {ascending: false})) : [],
+    ['espelho', 'ponto'].includes(S.aba) ? batidasDoMes(mesAtual()) : []])
   const pes = Object.fromEntries(pessoais.map(x => [x.id, x]))
   servidores.forEach(s => Object.assign(s, pes[s.id] || {}))
-  S.d = {setores, turnos, escalas, servidores, perfis, convites}
+  S.d = {setores, turnos, escalas, feriados, servidores, perfis, convites}
+  S.bat = bat
+}
+// batidas do mês (com um dia de folga em cada ponta, por causa do plantão que passa da meia-noite).
+// O Supabase devolve no máximo 1000 linhas por vez: busca em páginas. O banco só entrega o que o perfil pode ver.
+const mesAtual = () => S.mes || hoje().slice(0, 7)
+async function batidasDoMes(mes) {
+  const [ini, fim] = limitesMes(mes), out = []
+  for (let de = 0; ; de += 1000) {
+    const pag = await q(sb.from('batidas').select('servidor_id, tipo, em').gte('em', addDia(ini, -1) + 'T00:00:00-04:00')
+      .lt('em', addDia(fim, 2) + 'T00:00:00-04:00').order('em').order('id').range(de, de + 999))
+    out.push(...pag); if (pag.length < 1000) return out
+  }
 }
 const setorNome = id => S.d.setores.find(s => s.id === id)?.nome || '—'
 const jornada = s => s.escala_id ? S.d.escalas.find(e => e.id === s.escala_id)?.nome : S.d.turnos.find(t => t.id === s.turno_id)?.nome || '—'
 const hora = t => t?.slice(0, 5)
 const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+/* ============================== espelho de ponto ============================== */
+// Manaus é UTC-4 o ano todo (sem horário de verão): dá para converter sem biblioteca.
+const FUSO_MIN = 4 * 60
+const addDia = (dia, n) => new Date(Date.parse(dia + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10)
+const limitesMes = mes => { const ini = mes + '-01', fim = addDia(addDia(ini, 32).slice(0, 7) + '-01', -1); return [ini, fim] }
+const minAbs = em => Math.round(Date.parse(em) / 6e4)                         // minutos desde 1970 (UTC)
+const inicioDia = dia => Math.round(Date.parse(dia + 'T00:00:00Z') / 6e4) + FUSO_MIN   // meia-noite em Manaus
+const diaLocal = em => new Date(Date.parse(em) - FUSO_MIN * 6e4).toISOString().slice(0, 10)
+const hhmm = abs => { const m = ((abs - FUSO_MIN) % 1440 + 1440) % 1440; return `${String(m / 60 | 0).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` }
+const toMin = t => t ? +t.slice(0, 2) * 60 + +t.slice(3, 5) : null
+const duracao = m => `${m < 0 ? '−' : ''}${Math.abs(m) / 60 | 0}h${String(Math.abs(m) % 60).padStart(2, '0')}`
+const LIMITE_PLANTAO_MIN = 26 * 60   // igual a limite_plantao_horas() no banco
+
+// Um servidor, um mês → linhas por dia e totais. Função pura: não lê S nem o banco (testável).
+// ponytail: férias/afastamento usam a situação atual, não um histórico por data; registrar períodos quando o RH pedir.
+function espelhoMes(s, batidas, mes, {turnos, escalas, feriados}, hojeStr, agoraAbs = Math.round(Date.now() / 6e4)) {
+  const escala = s.escala_id && escalas.find(e => e.id === s.escala_id)
+  const turno = turnos.find(t => t.id === (escala ? escala.turno_id : s.turno_id))
+  const feriado = Object.fromEntries(feriados.map(f => [f.data, f.nome]))
+  const [ini, fim] = limitesMes(mes)
+  const jorn = turno && (() => {
+    const ent = toMin(turno.entrada); let sai = toMin(turno.saida); if (sai <= ent) sai += 1440
+    return {ent, sai, min: sai - ent - (turno.saida_almoco ? toMin(turno.retorno_almoco) - toMin(turno.saida_almoco) : 0)}
+  })()
+  const previsto = dia => {
+    if (!turno || (s.admissao && dia < s.admissao) || (s.desligado_em && dia > s.desligado_em)) return false
+    if (escala) { const n = Math.round((Date.parse(dia) - Date.parse(s.escala_inicio)) / 864e5); return n >= 0 && n % (escala.dias_trabalho + escala.dias_descanso) < escala.dias_trabalho }
+    return turno.dias_semana.includes(new Date(dia + 'T12:00:00Z').getUTCDay()) && !feriado[dia]
+  }
+  // pares entrada→saída, na ordem; o par conta no dia da entrada (plantão termina no dia seguinte)
+  const pares = []; let aberto = null
+  for (const b of batidas.filter(b => b.servidor_id === s.id).sort((a, b) => minAbs(a.em) - minAbs(b.em))) {
+    if (b.tipo === 'entrada') { if (aberto) pares.push({ent: aberto}); aberto = minAbs(b.em) }
+    else { pares.push(aberto ? {ent: aberto, sai: minAbs(b.em)} : {sai: minAbs(b.em)}); aberto = null }
+  }
+  if (aberto) pares.push({ent: aberto})
+  const porDia = {}
+  for (const p of pares) (porDia[diaLocal(new Date((p.ent ?? p.sai) * 6e4).toISOString())] ??= []).push(p)
+
+  const dias = [], tot = {previsto: 0, trabalhado: 0, faltas: 0, atrasos: 0, pendencias: 0}
+  for (let dia = ini; dia <= fim; dia = addDia(dia, 1)) {
+    const prev = previsto(dia), ps = porDia[dia] || [], d0 = inicioDia(dia), oc = []
+    // intervalo pré-assinalado: quem não bate saída/volta do almoço tem o intervalo descontado do par que o cobre
+    const [alm0, alm1] = turno?.saida_almoco ? [d0 + toMin(turno.saida_almoco), d0 + toMin(turno.retorno_almoco)] : []
+    const trab = ps.reduce((t, p) => t + (p.ent && p.sai ? p.sai - p.ent - (alm0 && p.ent <= alm0 && p.sai >= alm1 ? alm1 - alm0 : 0) : 0), 0)
+    const fechado = dia < hojeStr
+    for (const p of ps) {
+      if (!p.ent) oc.push(['Saída sem entrada', 'amber'])
+      else if (!p.sai) oc.push(agoraAbs - p.ent < LIMITE_PLANTAO_MIN && dia >= addDia(hojeStr, -1) ? ['Em andamento', 'blue'] : ['Sem saída', 'red'])
+    }
+    if (prev && fechado && !ps.length) oc.push(['Falta', 'red'])
+    const primeira = ps.find(p => p.ent)?.ent, ultima = [...ps].reverse().find(p => p.sai)?.sai
+    if (prev && primeira && primeira - d0 > jorn.ent + turno.tolerancia_min) oc.push([`Atraso ${duracao(primeira - d0 - jorn.ent)}`, 'amber'])
+    if (prev && fechado && ultima && !ps.some(p => p.ent && !p.sai) && ultima - d0 < jorn.sai - turno.tolerancia_saida_min) oc.push(['Saiu antes', 'amber'])
+    if (!prev && ps.length) oc.push([feriado[dia] ? 'Trabalhou no feriado' : 'Fora da escala', 'blue'])
+    const linha = {dia, prev, feriado: feriado[dia], pares: ps, trab, esperado: prev ? jorn.min : 0, oc, fechado}
+    if (fechado) {
+      tot.previsto += linha.esperado; tot.trabalhado += trab
+      tot.faltas += oc.some(o => o[0] === 'Falta'); tot.atrasos += oc.some(o => o[0].startsWith('Atraso'))
+      tot.pendencias += oc.filter(o => ['Sem saída', 'Saída sem entrada'].includes(o[0])).length
+    }
+    dias.push(linha)
+  }
+  tot.saldo = tot.trabalhado - tot.previsto
+  return {dias, tot, turno}
+}
 
 /* ============================== telas ============================== */
 function render() {
@@ -107,13 +189,37 @@ const TELAS = {
       <p class="sub">${lista.length} servidor(es).${rh ? ' Desligou o servidor → o crachá dele para de funcionar em todos os totens na hora.' : ''}</p></div>`
   },
 
+  espelho() {
+    const s = S.esp && S.d.servidores.find(x => x.id === S.esp)
+    if (s) return telaEspelho(s, true)
+    const f = S.filtro, mes = mesAtual(), lista = S.d.servidores.filter(x => x.situacao !== 'desligado' && (!f.setor || x.setor_id === f.setor))
+    const linhas = lista.map(x => ({s: x, ...espelhoMes(x, S.bat, mes, S.d, hoje())}))
+      .sort((a, b) => b.tot.faltas + b.tot.pendencias - (a.tot.faltas + a.tot.pendencias) || a.s.nome.localeCompare(b.s.nome))
+    const n = (v, cor) => v ? `<span class="pill ${cor}">${v}</span>` : '<span class="sub">0</span>'
+    return cabecalho(S.perfil.papel === 'chefe' ? setorNome(S.perfil.setor_id) : 'Frequência', 'Frequência do mês') + `<div class="card"><div class="filtros">
+        <input type="month" data-mes value="${mes}" aria-label="Mês">
+        ${S.perfil.papel === 'chefe' ? '' : `<select data-filtro="setor">${opcoes(S.d.setores.map(x => [x.id, x.nome]), f.setor, 'Todos os setores')}</select>`}
+      </div><div class="tabela"><table><thead><tr><th>Servidor</th><th>Setor</th><th>Previsto</th><th>Trabalhado</th><th>Saldo</th><th>Faltas</th><th>Atrasos</th><th>Pendências</th><th></th></tr></thead><tbody>
+      ${linhas.map(({s, tot, turno}) => `<tr><td>${esc(s.nome)}<div class="sub">mat. ${esc(s.matricula)}${turno ? '' : ' · sem horário definido'}</div></td><td>${esc(setorNome(s.setor_id))}</td>
+        <td>${duracao(tot.previsto)}</td><td>${duracao(tot.trabalhado)}</td><td><b style="color:var(${tot.saldo < 0 ? '--red' : '--goldink'})">${duracao(tot.saldo)}</b></td>
+        <td>${n(tot.faltas, 'red')}</td><td>${n(tot.atrasos, 'amber')}</td><td>${n(tot.pendencias, 'red')}</td>
+        <td><button class="btn ghost sm" data-a="ver-espelho" data-id="${s.id}">Espelho</button></td></tr>`).join('')}
+      </tbody></table>${linhas.length ? '' : '<div class="vazio">Nenhum servidor em atividade.</div>'}</div>
+      <p class="sub">Conta até ontem; hoje ainda está em andamento. Quem tem falta ou pendência aparece primeiro.</p></div>`
+  },
+
+  ponto() {
+    const s = S.d.servidores[0]
+    return s ? telaEspelho(s, false) : '<div class="card vazio">Cadastro não encontrado. Procure o RH.</div>'
+  },
+
   meu() {
     const s = S.d.servidores[0]
     if (!s) return '<div class="card vazio">Cadastro não encontrado. Procure o RH.</div>'
     const linha = (k, v) => `<div class="row"><span class="sub">${k}</span><b>${esc(v)}</b></div>`
     return cabecalho('Meu cadastro', s.nome) + `<div class="card">${linha('Matrícula', s.matricula)}${linha('Cargo', s.cargo)}
       ${linha('Setor', setorNome(s.setor_id))}${linha('Horário', jornada(s))}${linha('Situação', SITUACAO[s.situacao][0])}
-      <p class="sub">O espelho do ponto e o pedido de justificativa chegam na próxima etapa.</p></div>`
+      <p class="sub">Suas batidas e o saldo do mês estão em <a href="#ponto">Meu ponto</a>.</p></div>`
   },
 
   totem() {
@@ -165,7 +271,16 @@ const TELAS = {
           <label>Dias de trabalho<input name="dias_trabalho" type="number" min="1" max="30" required value="1"></label>
           <label>Dias de folga<input name="dias_descanso" type="number" min="0" max="30" required value="3"></label>
           <div class="acoes span2"><button class="btn">Adicionar escala</button></div>
-        </form></div></div>`
+        </form></div>
+      <div class="card"><h3>Feriados e pontos facultativos <small>${S.d.feriados.length}</small></h3>
+        ${S.d.feriados.map(f => `<div class="row"><div><b>${dataBR(f.data)}</b> ${esc(f.nome)}</div>
+          <button class="btn ghost sm" data-a="excluir-feriado" data-id="${f.data}">Excluir</button></div>`).join('') || '<div class="vazio">Nenhum feriado cadastrado.</div>'}
+        <form class="f" data-f="feriado" style="margin-top:12px">
+          <label>Data<input name="data" type="date" required></label>
+          <label>Nome<input name="nome" required placeholder="Ex.: Aniversário da cidade"></label>
+          <div class="acoes span2"><button class="btn">Adicionar feriado</button></div>
+        </form>
+        <p class="sub">No feriado ninguém de turno tem falta. Escala (plantão) segue normal.</p></div></div>`
   },
 
   acessos() {
@@ -206,6 +321,31 @@ const TELAS = {
             <td>${esc(r.cargo)}</td><td>${esc(r.turno)}</td><td>${esc(r.vinculo)}</td></tr>`).join('')}</tbody></table></div>
         <div class="acoes" style="margin-top:12px"><button class="btn" data-a="importar" ${i.ok.length ? '' : 'disabled'}>Importar ${i.ok.length} servidor(es)</button></div></div>` : ''}`
   },
+}
+
+// espelho de um servidor (tela e impressão usam o mesmo HTML)
+function htmlEspelho(s) {
+  const mes = mesAtual(), {dias, tot, turno} = espelhoMes(s, S.bat, mes, S.d, hoje())
+  const [a, m] = mes.split('-'), nomeMes = new Date(Date.UTC(+a, +m - 1, 15)).toLocaleDateString('pt-BR', {month: 'long', year: 'numeric', timeZone: 'UTC'})
+  const par = (p, dia) => `${p.ent ? hhmm(p.ent) : '?'}–${p.sai ? hhmm(p.sai) + (diaLocal(new Date(p.sai * 6e4).toISOString()) > dia ? ' <span class="sub">(+1)</span>' : '') : '…'}`
+  return `<div class="espelho"><div class="esp-topo"><div><b>${esc(s.nome)}</b> · matrícula ${esc(s.matricula)}<div class="sub">${esc(s.cargo)}${s.cargo ? ' · ' : ''}${esc(setorNome(s.setor_id))} · ${esc(jornada(s) || 'sem horário definido')}${turno ? ` (${hora(turno.entrada)}–${hora(turno.saida)})` : ''}</div></div>
+      <div class="sub" style="text-align:right">${esc(NOME_INSTITUICAO)}<br>Espelho de ponto · ${nomeMes}</div></div>
+    <div class="grid g4" style="margin:12px 0">
+      <div class="stat"><b>${duracao(tot.previsto)}</b><span>previsto até ontem</span></div><div class="stat"><b>${duracao(tot.trabalhado)}</b><span>trabalhado</span></div>
+      <div class="stat ${tot.saldo < 0 ? 'bad' : 'ok'}"><b>${duracao(tot.saldo)}</b><span>saldo</span></div>
+      <div class="stat ${tot.faltas || tot.pendencias ? 'bad' : 'ok'}"><b>${tot.faltas} / ${tot.atrasos} / ${tot.pendencias}</b><span>faltas / atrasos / pendências</span></div></div>
+    <div class="tabela"><table><thead><tr><th>Dia</th><th>Batidas</th><th>Previsto</th><th>Trabalhado</th><th>Ocorrências</th></tr></thead><tbody>
+    ${dias.map(d => `<tr class="${d.prev || d.pares.length ? '' : 'off'}"><td>${dataBR(d.dia).slice(0, 5)} <span class="sub">${DIAS[new Date(d.dia + 'T12:00:00Z').getUTCDay()]}</span></td>
+      <td>${d.pares.map(p => par(p, d.dia)).join('<br>') || (d.feriado ? `<span class="sub">Feriado: ${esc(d.feriado)}</span>` : d.prev ? '' : '<span class="sub">folga</span>')}</td>
+      <td>${d.esperado ? duracao(d.esperado) : ''}</td><td>${d.trab ? duracao(d.trab) : ''}</td>
+      <td>${d.oc.map(([t, c]) => `<span class="pill ${c}">${esc(t)}</span>`).join(' ')}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="assinaturas"><div>Servidor(a)</div><div>Chefia imediata</div></div></div>`
+}
+function telaEspelho(s, voltar) {
+  return cabecalho('Espelho de ponto', s.nome, `${voltar ? '<button class="btn ghost" data-a="voltar-espelho">← Frequência</button>' : ''}
+      <input type="month" data-mes value="${mesAtual()}" aria-label="Mês" style="width:auto"><button class="btn" data-a="imprimir-espelho" data-id="${s.id}">Imprimir</button>`) +
+    `<div class="card">${htmlEspelho(s)}</div>`
 }
 
 function formServidor() {
@@ -326,6 +466,7 @@ const FORMS = {
     S.edit = null; return ['ok', 'Turno salvo.']
   },
   async escala(f) { await q(sb.from('escalas').insert(dadosForm(f))); return ['ok', 'Escala salva.'] },
+  async feriado(f) { await q(sb.from('feriados').insert(dadosForm(f))); return ['ok', 'Feriado salvo.'] },
   async 'convite-novo'(f) {
     const d = vazioNull(dadosForm(f))
     if (d.papel === 'servidor') d.nome = S.d.servidores.find(s => s.id === d.servidor_id).nome
@@ -355,6 +496,14 @@ const ACOES = {
   async 'excluir-setor'(el) {
     if (!confirm('Excluir este setor?')) return false
     await q(sb.from('setores').delete().eq('id', el.dataset.id)); return ['ok', 'Setor excluído.']
+  },
+  async 'excluir-feriado'(el) { await q(sb.from('feriados').delete().eq('data', el.dataset.id)); return ['ok', 'Feriado excluído.'] },
+  'ver-espelho'(el) { S.esp = el.dataset.id; scrollTo(0, 0); return false },
+  'voltar-espelho'() { S.esp = null; return false },
+  'imprimir-espelho'(el) {
+    $('#impressao').innerHTML = htmlEspelho(S.d.servidores.find(s => s.id === el.dataset.id))
+    document.body.classList.add('imprimindo', 'imp-espelho'); print(); document.body.classList.remove('imprimindo', 'imp-espelho')
+    return false
   },
   async 'cancelar-convite'(el) { await q(sb.from('convites').delete().eq('codigo', el.dataset.id)); return ['ok', 'Código cancelado.'] },
   async ativar(el) { await q(sb.from('perfis').update({ativo: el.dataset.v === 'true'}).eq('id', el.dataset.id)) },
@@ -402,13 +551,17 @@ function ligarEventos() {
     const el = ev.target
     if (el.dataset.a === 'arquivo') return executar(() => ACOES.arquivo(el))
     if (el.matches('[data-papel]')) { S.edit = el.value; S.convite = null; return render() }
+    if (el.matches('[data-mes]') && el.value) { S.mes = el.value; return executar(async () => {}) }   // recarrega as batidas do mês
     if (el.dataset.filtro) { S.filtro[el.dataset.filtro] = el.value; render() }
   })
   document.addEventListener('input', ev => {
     const el = ev.target
     if (el.dataset.filtro === 'busca') { S.filtro.busca = el.value; render(); const b = $('[data-filtro="busca"]'); b.focus(); b.setSelectionRange(b.value.length, b.value.length) }
   })
-  addEventListener('hashchange', () => { S.aba = location.hash.slice(1); S.edit = null; S.msg = null; S.convite = null; render() })
+  addEventListener('hashchange', () => {
+    S.aba = location.hash.slice(1); S.edit = null; S.msg = null; S.convite = null; S.esp = null
+    if (S.perfil && ['espelho', 'ponto'].includes(S.aba)) executar(async () => {}); else render()   // espelho busca as batidas
+  })
 }
 
 async function iniciar(cliente) {

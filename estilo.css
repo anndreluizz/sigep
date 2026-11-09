@@ -61,10 +61,20 @@ tr.off td{color:var(--muted)}
 .cartao .corpo{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:3mm;text-align:center}
 .cartao .nome{font:700 13pt/1.1 "Barlow Condensed"}.cartao .cargo{font-size:8pt;color:#5b6680}.cartao .mat{font-size:8pt;color:#5b6680}
 .cartao svg{width:40mm;height:40mm}
+/* espelho de ponto */
+.esp-topo{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.espelho td{padding:5px 8px;vertical-align:top}
+.assinaturas{display:none}
+@page retrato{size:A4 portrait;margin:10mm}
 @media print{
   @page{size:A4 landscape;margin:4mm}
   body{background:#fff}
   body.imprimindo>*:not(#impressao){display:none!important}
   body.imprimindo #impressao{display:block}
+  body.imp-espelho #impressao{page:retrato;font-size:11px}
+  .espelho table{font-size:10.5px}.espelho td{padding:2px 6px}.espelho .stat b{font-size:20px}
+  .espelho .pill{border:1px solid currentColor;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .assinaturas{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px;text-align:center}
+  .assinaturas div{border-top:1px solid #000;padding-top:4px}
 }
 main.wrap{padding-top:22px;padding-bottom:30px}
