@@ -429,7 +429,7 @@ function formServidor() {
       <label>Setor<select name="setor_id" required>${S.perfil.papel === 'chefe' ? opcoes([[S.perfil.setor_id, setorNome(S.perfil.setor_id)]], S.perfil.setor_id)
         : opcoes(S.d.setores.map(x => [x.id, x.nome]), s.setor_id, 'Escolha')}</select></label>
       <label>Horário<select name="jornada">${opcoes(jornadas, jor, 'Sem horário definido')}</select></label>
-      <label>Início da escala (1º dia de trabalho)<input name="escala_inicio" type="date" value="${s.escala_inicio || ''}"></label>
+      <label>Início da escala <span class="sub">(só para plantão, ex.: vigia 24×72 · turno normal: deixe vazio)</span><input name="escala_inicio" type="date" value="${s.escala_inicio || ''}"></label>
       <label>Vínculo<select name="vinculo">${opcoes([['efetivo', 'Efetivo'], ['contratado', 'Contratado'], ['comissionado', 'Comissionado']], s.vinculo, '—')}</select></label>
       <label>Admissão<input name="admissao" type="date" value="${s.admissao || ''}"></label>
       <label>CPF<input name="cpf" inputmode="numeric" value="${esc(s.cpf)}" placeholder="só números"></label>
