@@ -179,7 +179,7 @@ declare t perfis; s servidores; ultimo batidas; agora timestamptz; turno turnos;
 begin
   t := meu_perfil();
   if t.papel is distinct from 'totem' then
-    raise exception 'Este aparelho não está autorizado como totem.' using errcode = '42501';
+    raise exception 'Este aparelho não está autorizado como totem.' using errcode = 'SG401';
   end if;
   if p_idade_segundos is null or p_idade_segundos not between 0 and limite_offline_segundos() then
     raise exception 'Batida guardada há tempo demais.' using errcode = '23514';

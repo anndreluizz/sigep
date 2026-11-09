@@ -124,6 +124,7 @@ async function semearDemo(cliente) {
     update turnos set saida_almoco = '11:00', retorno_almoco = '13:00' where nome = 'Integral';
     insert into escalas (id, nome, turno_id, dias_trabalho, dias_descanso) values
       ('30000000-0000-4000-8000-000000000001', 'Vigia 24×72', '20000000-0000-4000-8000-000000000003', 1, 3);
+    -- códigos fixos na demonstração: o crachá impresso em demo.html funciona em totem.html?demo
     insert into servidores (id, matricula, nome, cargo, setor_id, turno_id, vinculo, cpf) values
       ('40000000-0000-4000-8000-000000000001', '0101', 'Ana Paula Ferreira', 'Professora', '10000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'efetivo', '12345678901'),
       ('40000000-0000-4000-8000-000000000002', '0102', 'Carlos Eduardo Lima', 'Aux. serviços gerais', '10000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'contratado', null),
@@ -131,6 +132,7 @@ async function semearDemo(cliente) {
       ('40000000-0000-4000-8000-000000000004', '0330', 'Paulo Henrique Dias', 'Motorista', '10000000-0000-4000-8000-000000000003', '20000000-0000-4000-8000-000000000002', 'efetivo', null);
     insert into servidores (matricula, nome, cargo, setor_id, escala_id, escala_inicio, vinculo) values
       ('0105', 'Marta Oliveira', 'Vigia', '10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '2026-11-01', 'efetivo');
+    update servidores set codigo = 'DEMO-' || matricula;
     insert into perfis (id, nome, papel, setor_id, servidor_id) values
       ('00000000-0000-4000-8000-000000000001', 'Setor de RH', 'rh', null, null),
       ('00000000-0000-4000-8000-000000000002', 'Gestora da escola', 'chefe', '10000000-0000-4000-8000-000000000001', null),

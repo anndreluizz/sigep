@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>SIGEP Totem</title>
+<meta name="theme-color" content="#0d2f73">
+<link rel="manifest" href="manifest-totem.webmanifest">
+<link rel="icon" href="icone.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--g9:#0d2f73;--g7:#1d55b8;--gold:#2db35d;--red:#b3261e;--ink:#142036}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:linear-gradient(160deg,#0d2f73,#1d55b8);color:#fff;font:18px/1.4 Barlow,system-ui,sans-serif;overflow:hidden}
+[hidden]{display:none!important}
+h1,h2{font-family:"Barlow Condensed",Barlow,sans-serif;margin:0}
+.t-tela{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;gap:18px}
+.logo{width:72px;height:72px;border-radius:50%;background:var(--gold);color:var(--g9);display:grid;place-items:center;font:700 26px "Barlow Condensed"}
+h1{font-size:46px}h1 span{color:var(--gold)}
+.sub{color:#cfdcf4}
+.card{background:#fff;color:var(--ink);border-radius:16px;padding:22px;width:min(420px,100%);text-align:left}
+label{display:flex;flex-direction:column;gap:4px;font-size:14px;font-weight:600;color:#5b6680;margin-bottom:12px}
+input{font:17px Barlow,sans-serif;border:1px solid #dbe3ef;border-radius:10px;padding:10px 12px}
+.btn{background:var(--gold);color:var(--g9);border:0;border-radius:14px;padding:16px 40px;font:700 24px "Barlow Condensed";letter-spacing:.04em;cursor:pointer}
+.card .btn{width:100%;font-size:20px;padding:12px}
+.aviso{background:#fbefd2;color:#8a5a00;border-radius:12px;padding:12px 16px;max-width:520px;font-weight:600}
+/* câmera */
+#t-camera{display:grid;grid-template-columns:1.1fr 1fr;gap:28px;align-items:center;justify-content:normal;text-align:left;padding:28px}
+.cam{position:relative;aspect-ratio:3/4;max-height:calc(100vh - 56px);border-radius:18px;overflow:hidden;background:#071433;justify-self:center;width:100%}
+.cam video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.cam .alvo{position:absolute;inset:0;margin:auto;width:62%;aspect-ratio:1;height:auto;border:4px solid var(--gold);border-radius:18px;box-shadow:0 0 0 999px #0007}
+.cam .dica{position:absolute;bottom:14px;left:0;right:0;text-align:center;font-weight:600}
+.lado{display:flex;flex-direction:column;gap:14px}
+.chip{display:inline-flex;align-self:flex-start;background:#ffffff1f;border-radius:99px;padding:5px 13px;font-size:15px}
+#relogio{font:700 110px/1 "Barlow Condensed"}
+#data{font-size:24px;color:#cfdcf4}#data::first-letter{text-transform:uppercase}
+.instrucao{font:700 34px/1.1 "Barlow Condensed"}
+#fila{background:#fbbf24;color:#1f2937;font-weight:700;border-radius:12px;padding:8px 14px}
+/* resposta da leitura */
+.resposta{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;gap:8px}
+.resposta.ok{background:rgba(21,122,58,.97)}.resposta.erro{background:rgba(179,38,30,.97)}
+#r-icone{font-size:110px;line-height:1}#r-titulo{font:700 56px/1.05 "Barlow Condensed"}#r-sub{font-size:28px;opacity:.95}
+#sair{position:fixed;right:18px;bottom:14px;background:none;border:0;color:#ffffff55;font-size:26px;cursor:pointer}
+#sair.armado{color:#fff}#sair.armado::before{content:"Toque de novo para desconectar o totem ";font-size:14px;vertical-align:middle}
+@media (max-width:760px),(orientation:portrait){#t-camera{grid-template-columns:1fr;text-align:center}.cam{max-height:55vh;width:auto}.chip{align-self:center}#relogio{font-size:72px}}
+</style>
+</head>
+<body>
+<section class="t-tela" id="t-carregando"><div class="logo">SG</div><p class="sub">Carregando…</p></section>
+
+<section class="t-tela" id="t-login" hidden>
+  <div class="logo">SG</div><h1>SIG<span>EP</span> · Totem</h1>
+  <form class="card" id="form-login">
+    <p style="margin-top:0">Entre com a <b>conta do totem</b> deste setor. É só uma vez: o tablet fica conectado.</p>
+    <label>E-mail<input name="email" type="email" required autocomplete="username"></label>
+    <label>Senha<input name="senha" type="password" required autocomplete="current-password"></label>
+    <p class="aviso" id="erro-login" role="alert" hidden></p>
+    <button class="btn">Entrar</button>
+  </form>
+  <p class="sub" style="max-width:520px">Não tem a conta? O RH gera um código em <b>Acessos → Totem</b>; crie a conta no SIGEP com esse código e use o mesmo e-mail aqui.</p>
+</section>
+
+<section class="t-tela" id="t-inicio" hidden>
+  <div class="logo">SG</div><h1 id="inicio-setor"></h1>
+  <p class="sub">Toque no botão para ligar a câmera e começar a registrar o ponto.</p>
+  <p class="aviso" id="erro-camera" role="alert" hidden></p>
+  <button class="btn" id="iniciar">Iniciar</button>
+</section>
+
+<section class="t-tela" id="t-camera" hidden>
+  <div class="cam"><video id="video" autoplay playsinline muted></video><div class="alvo"></div><div class="dica">câmera frontal · aproxime o crachá</div></div>
+  <div class="lado">
+    <span class="chip" id="setor"></span>
+    <div id="relogio"></div><div id="data"></div>
+    <div class="instrucao">Aproxime seu crachá do quadrado verde</div>
+    <div id="fila" role="status" hidden></div>
+  </div>
+</section>
+
+<div class="resposta" id="resposta" role="status" aria-live="assertive" hidden><div id="r-icone"></div><div id="r-titulo"></div><div id="r-sub"></div></div>
+<button id="sair" type="button" aria-label="Desconectar o totem">⚙</button>
+
+<script src="js/jsqr.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/totem.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script type="module">
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js')
+const $ = s => document.querySelector(s)
+if (new URLSearchParams(location.search).has('demo')) {
+  // demonstração: o mesmo banco no navegador, já conectado como o totem da escola
+  const s = document.createElement('script'); s.src = 'js/local.js'; document.head.append(s); await new Promise(r => s.onload = r)
+  const {PGlite} = await import('https://cdn.jsdelivr.net/npm/@electric-sql/pglite@0.5.15/dist/index.js')
+  const sb = await criarClienteLocal(PGlite, m => fetch('supabase/migrations/' + m).then(r => r.text()))
+  await semearDemo(sb)
+  await sb.auth.signInWithPassword({email: 'totem@demo', password: 'demo1234'})
+  iniciarTotem(sb)
+} else if (!SUPABASE_URL) {
+  document.querySelector('#t-carregando p').innerHTML = 'Banco ainda não configurado. Veja a <a href="totem.html?demo" style="color:#fff">demonstração</a>.'
+} else iniciarTotem(supabase.createClient(SUPABASE_URL, SUPABASE_KEY))
+</script>
+</body>
+</html>

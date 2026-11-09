@@ -1,0 +1,11 @@
+{
+  "name": "SIGEP Totem",
+  "short_name": "SIGEP Totem",
+  "lang": "pt-BR",
+  "start_url": "totem.html",
+  "id": "totem.html",
+  "display": "fullscreen",
+  "background_color": "#0d2f73",
+  "theme_color": "#0d2f73",
+  "icons": [{"src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}]
+}
