@@ -230,13 +230,25 @@ create table historico (
 );
 create index on historico (servidor_id, em);
 
+-- CPF, telefone e código do crachá não entram no histórico: o chefe lê o histórico do setor,
+-- e esses campos são só do RH (ver dados_pessoais). Fica registrado apenas que mudaram.
+create function sem_dados_pessoais(j jsonb) returns jsonb language sql immutable
+as $$ select j - array['cpf', 'telefone', 'codigo'] $$;
+
 create function registrar_historico() returns trigger language plpgsql security definer set search_path = public as $$
-declare r record;
+declare r record; a jsonb; d jsonb; mudou text[];
 begin
   if tg_op = 'DELETE' then r := old; else r := new; end if;
+  if tg_op <> 'INSERT' then a := to_jsonb(old); end if;
+  if tg_op <> 'DELETE' then d := to_jsonb(new); end if;
+  if tg_table_name = 'servidores' then
+    select array_agg(k) into mudou from unnest(array['cpf', 'telefone', 'codigo']) k where a ->> k is distinct from d ->> k;
+    a := sem_dados_pessoais(a);
+    d := sem_dados_pessoais(d) || case when mudou is not null then jsonb_build_object('dados_pessoais_alterados', to_jsonb(mudou)) else '{}' end;
+  end if;
   insert into historico (tabela, registro_id, servidor_id, acao, antes, depois)
   values (tg_table_name, r.id, case when tg_table_name = 'servidores' then r.id else (to_jsonb(r) ->> 'servidor_id')::uuid end,
-          tg_op, case when tg_op <> 'INSERT' then to_jsonb(old) end, case when tg_op <> 'DELETE' then to_jsonb(new) end);
+          tg_op, a, d);
   return r;
 end $$;
 create trigger historico after insert or update or delete on servidores for each row execute function registrar_historico();

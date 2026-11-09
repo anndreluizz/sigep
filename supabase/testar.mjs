@@ -147,6 +147,11 @@ ok((await q(`select * from historico where tabela = 'batidas' and acao = 'INSERT
 const h = await um(`select quem, antes->>'situacao' a, depois->>'situacao' d from historico where tabela = 'servidores' and registro_id = $1 and acao = 'UPDATE' order by id limit 1`, [paulo.id])
 ok(h.quem === RH && h.a === 'ativo' && h.d === 'desligado', 'desligamento registrado com quem fez')
 await erro('delete from historico', [], 'permission denied', 'histórico não se apaga')
+await como(CHEFE)
+const hChefe = (await q(`select antes, depois from historico where tabela = 'servidores'`)).map(x => JSON.stringify(x)).join()
+ok(hChefe.includes('Ana Paula') && !hChefe.includes('12345678901') && !hChefe.includes(cAna) && !/"(cpf|telefone|codigo)":/.test(hChefe),
+   'histórico não vaza CPF, telefone nem código do crachá')
+ok(hChefe.includes('"dados_pessoais_alterados":["cpf","codigo"]'), 'histórico registra que os dados pessoais mudaram, sem o valor')
 await como(SERV)
 ok((await q('select distinct servidor_id from historico')).every(x => x.servidor_id === ana.id), 'servidora vê só o próprio histórico')
 
