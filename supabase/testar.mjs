@@ -42,7 +42,7 @@ const [vigia] = await q(`insert into escalas (nome, turno_id, dias_trabalho, dia
 const ana = await um(`insert into servidores (matricula, nome, cargo, setor_id, turno_id, cpf) values ('0101', 'Ana Paula Ferreira', 'Professora', $1, $2, '12345678901') returning id`, [escola.id, mat.id])
 const marta = await um(`insert into servidores (matricula, nome, setor_id, escala_id, escala_inicio) values ('0105', 'Marta (vigia)', $1, $2, '2026-11-01') returning id`, [escola.id, vigia.id])
 const paulo = await um(`insert into servidores (matricula, nome, setor_id) values ('0330', 'Paulo Henrique Dias', $1) returning id`, [obras.id])
-const codigo = async id => (await um('select codigo from dados_pessoais($1)', [id])).codigo
+const codigo = async id => (await um('select codigo from dados_pessoais() where id = $1', [id])).codigo
 const [cAna, cMarta, cPaulo] = [await codigo(ana.id), await codigo(marta.id), await codigo(paulo.id)]
 ok(cAna.length === 32, 'código do crachá aleatório')
 
@@ -86,7 +86,7 @@ await como(TOTEM); ok(await nomes() === '', 'totem não lista servidores')
 await como(CHEFE)
 await erro('select cpf from servidores', [], 'permission denied', 'chefe não lê CPF')
 await erro('select codigo from servidores', [], 'permission denied', 'chefe não lê o código do crachá')
-ok((await q('select * from dados_pessoais($1)', [ana.id])).length === 0, 'dados pessoais: só RH')
+ok((await q('select * from dados_pessoais()')).length === 0, 'dados pessoais: só RH')
 ok((await q(`update servidores set cargo = 'Diretora' where id = $1 returning id`, [ana.id])).length === 0, 'chefe não altera cadastro')
 await erro(`insert into servidores (matricula, nome, setor_id) values ('9', 'Fulano de Tal', $1)`, [escola.id], 'row-level security', 'chefe não cadastra')
 await como(PREF)

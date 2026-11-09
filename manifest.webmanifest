@@ -1,0 +1,10 @@
+{
+  "name": "SIGEP – Sistema de Gestão de Ponto",
+  "short_name": "SIGEP",
+  "lang": "pt-BR",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0d2f73",
+  "theme_color": "#0d2f73",
+  "icons": [{"src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}]
+}

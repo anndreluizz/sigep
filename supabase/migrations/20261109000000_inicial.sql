@@ -297,10 +297,10 @@ grant select on historico to authenticated;
 grant insert, update on servidores to authenticated;
 grant select (id, matricula, nome, cargo, setor_id, turno_id, escala_id, escala_inicio, situacao, desligado_em,
               vinculo, admissao, criado_em) on servidores to authenticated;
-create function dados_pessoais(sid uuid) returns table (cpf text, telefone text, codigo text)
+create function dados_pessoais() returns table (id uuid, cpf text, telefone text, codigo text)
 language sql stable security definer set search_path = public as $$
-  select cpf, telefone, codigo from servidores where id = sid and e_rh()
+  select id, cpf, telefone, codigo from servidores where e_rh()
 $$;
-revoke execute on function dados_pessoais(uuid) from public;
+revoke execute on function dados_pessoais() from public;
 grant execute on function meu_perfil(), meu_papel(), e_rh(), pode_ver_servidor(uuid), dia_local(timestamptz),
-  aceitar_convite(text), registrar_batida(text, int), dados_pessoais(uuid) to authenticated;
+  aceitar_convite(text), registrar_batida(text, int), dados_pessoais() to authenticated;

@@ -1,0 +1,70 @@
+:root{--g9:#0d2f73;--g8:#16408f;--g7:#1d55b8;--g1:#e6eefb;--gold:#2db35d;--goldink:#157a3a;--bg:#eef2f8;--card:#fff;--line:#dbe3ef;--ink:#142036;--muted:#5b6680;--red:#b3261e;--redbg:#fbe3e1;--amber:#8a5a00;--amberbg:#fbefd2;--blue:#1f4f8a;--bluebg:#e2ecf8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Barlow,system-ui,sans-serif}
+h1,h2,h3{font-family:"Barlow Condensed",Barlow,sans-serif;margin:0}
+.wrap{max-width:1140px;margin:0 auto;padding:0 16px}
+header{background:var(--g9);color:#fff}
+.brand{display:flex;align-items:center;gap:12px;padding:12px 0;flex-wrap:wrap}
+.logo{width:40px;height:40px;border-radius:50%;background:var(--gold);color:var(--g9);display:grid;place-items:center;font:700 15px "Barlow Condensed"}
+.bname{font:700 22px/1 "Barlow Condensed"}.bname span{color:var(--gold)}
+.bsub{font-size:12px;color:#b3c7ea}
+.who{margin-left:auto;font-size:12.5px;color:#d6e2f7;text-align:right}.who b{color:#fff;display:block}
+.tabs{display:flex;gap:2px;overflow-x:auto}
+.tabs a{color:#bcd0f0;font:600 14px "Barlow Condensed";letter-spacing:.06em;text-transform:uppercase;padding:9px 10px 11px;border-bottom:3px solid transparent;text-decoration:none;white-space:nowrap}
+.tabs a.on{color:#fff;border-color:var(--gold)}
+main{padding:22px 16px 30px}
+.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.head h2{font-size:30px;line-height:1.05}
+.grid{display:grid;gap:14px}.g4{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.card h3{font-size:19px;margin-bottom:10px;display:flex;justify-content:space-between;gap:8px}
+.card h3 small{font:400 12px Barlow;color:var(--muted)}
+.stat b{display:block;font:700 34px/1 "Barlow Condensed"}.stat span{font-size:13px;color:var(--muted)}
+.stat.ok b{color:var(--goldink)}.stat.warn b{color:var(--amber)}.stat.bad b{color:var(--red)}
+.pill{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:99px;background:#e8ebf2;color:#454f63;white-space:nowrap}
+.pill.green{background:#dcefe2;color:var(--goldink)}.pill.amber{background:var(--amberbg);color:var(--amber)}.pill.red{background:var(--redbg);color:var(--red)}.pill.blue{background:var(--bluebg);color:var(--blue)}
+.btn{display:inline-flex;align-items:center;gap:6px;background:var(--g7);color:#fff;border:0;border-radius:9px;padding:8px 13px;font:600 13.5px Barlow;cursor:pointer}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}.btn.gold{background:var(--gold);color:var(--g9)}.btn.sm{padding:4px 9px;font-size:12px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:2px solid var(--line)}
+td{padding:8px;border-bottom:1px solid var(--line)}
+.bar{height:9px;border-radius:9px;background:var(--g1);overflow:hidden}.bar i{display:block;height:100%;background:var(--gold)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}.row:last-child{border:0}
+.sub{font-size:12px;color:var(--muted)}
+.tela{display:none}.tela.on{display:block}
+/* ---------- SIGEP: além do protótipo ---------- */
+a{color:var(--g7)}
+.btn.red{background:var(--red)}.btn:disabled{opacity:.5;cursor:default}
+.who button{background:none;border:0;color:#d6e2f7;text-decoration:underline;cursor:pointer;font:inherit;padding:0}
+form.f{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 14px;align-items:end}
+form.f .span2{grid-column:1/-1}
+label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted);font-weight:600}
+input,select,textarea{font:15px Barlow,system-ui,sans-serif;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:9px;padding:8px 10px;width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--g7);outline-offset:-1px}
+.acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.msg{padding:10px 14px;border-radius:10px;margin-bottom:14px;font-weight:600}
+.msg.erro{background:var(--redbg);color:var(--red)}.msg.ok{background:#dcefe2;color:var(--goldink)}.msg.info{background:var(--bluebg);color:var(--blue)}
+.tabela{overflow-x:auto}
+.entrar{max-width:420px;margin:30px auto}
+.vazio{color:var(--muted);text-align:center;padding:24px}
+code.cod{font:700 20px/1 "Barlow Condensed";letter-spacing:.12em;background:var(--g1);padding:4px 10px;border-radius:8px}
+tr.off td{color:var(--muted)}
+.filtros{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.filtros>*{flex:1;min-width:160px}
+
+/* crachá 7 × 10 cm, 8 por folha A4 deitada */
+#impressao{display:none}
+.folha{display:grid;grid-template-columns:repeat(4,70mm);gap:1.5mm;justify-content:center}
+.cartao{width:70mm;height:100mm;border:.2mm dashed #9ca3af;border-radius:3mm;display:flex;flex-direction:column;align-items:center;overflow:hidden;background:#fff;break-inside:avoid;font-family:Barlow,sans-serif;color:#142036}
+.cartao .furo{width:16mm;height:3.5mm;margin:2.5mm auto 2mm;border:.3mm dashed #6b7280;border-radius:1.75mm}
+.cartao .topo{align-self:stretch;background:var(--g9);color:#fff;min-height:10mm;display:grid;place-items:center;text-align:center;font:700 9pt/1.1 "Barlow Condensed";text-transform:uppercase;padding:1mm 3mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.cartao .corpo{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:3mm;text-align:center}
+.cartao .nome{font:700 13pt/1.1 "Barlow Condensed"}.cartao .cargo{font-size:8pt;color:#5b6680}.cartao .mat{font-size:8pt;color:#5b6680}
+.cartao svg{width:40mm;height:40mm}
+@media print{
+  @page{size:A4 landscape;margin:4mm}
+  body{background:#fff}
+  body.imprimindo>*:not(#impressao){display:none!important}
+  body.imprimindo #impressao{display:block}
+}
+main.wrap{padding-top:22px;padding-bottom:30px}

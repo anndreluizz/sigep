@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIGEP</title>
+<meta name="description" content="Sistema de Gestão de Ponto da Prefeitura">
+<meta name="theme-color" content="#0d2f73">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icone.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<header><div class="wrap">
+  <div class="brand"><div class="logo">SG</div>
+    <div><div class="bname">SIG<span>EP</span></div><div class="bsub">Sistema de Gestão de Ponto</div></div>
+    <div class="who" id="who"></div></div>
+  <nav class="tabs" id="tabs"></nav>
+</div></header>
+<main class="wrap" id="app"><div class="vazio">Carregando…</div></main>
+<div id="impressao"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js')
+if (!SUPABASE_URL) document.getElementById('app').innerHTML =
+  '<div class="entrar"><div class="card"><h3>Banco ainda não configurado</h3><p>Preencha <code>js/config.js</code> com o endereço do Supabase da Prefeitura. Enquanto isso, veja a <a href="demo.html">demonstração</a>.</p></div></div>'
+else iniciar(supabase.createClient(SUPABASE_URL, SUPABASE_KEY))
+</script>
+</body>
+</html>
