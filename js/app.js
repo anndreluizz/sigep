@@ -12,11 +12,11 @@ const dataBR = d => d ? d.split('-').reverse().join('/') : ''
 const ABAS = {
   rh: [['servidores', 'Servidores'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos'], ['setores', 'Setores'], ['horarios', 'Horários'], ['acessos', 'Acessos'], ['importar', 'Importar planilha']],
   prefeito: [['servidores', 'Servidores'], ['espelho', 'Frequência']],
-  chefe: [['servidores', 'Minha equipe'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos']],
+  chefe: [['servidores', 'Minha equipe'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos'], ['acessos', 'Acessos']],
   servidor: [['ponto', 'Meu ponto'], ['meu', 'Meu cadastro']],
   totem: [['totem', 'Totem']],
 }
-const PAPEIS = {rh: 'RH', prefeito: 'Prefeito / Gabinete', chefe: 'Chefe de setor', servidor: 'Servidor', totem: 'Totem'}
+const PAPEIS = {rh: 'RH', prefeito: 'Prefeito / Gabinete', chefe: 'Secretaria / chefe do setor', servidor: 'Servidor', totem: 'Totem'}
 const SITUACAO = {ativo: ['Ativo', 'green'], ferias: ['Férias', 'blue'], afastado: ['Afastado', 'amber'], desligado: ['Desligado', 'red']}
 
 // erros do banco em português (as mensagens das nossas funções já vêm em português)
@@ -32,13 +32,13 @@ async function q(p) { const {data, error} = await p; if (error) throw new Error(
 /* ============================== dados ============================== */
 const COLS_SERV = 'id, matricula, nome, cargo, setor_id, turno_id, escala_id, escala_inicio, situacao, desligado_em, vinculo, admissao'
 async function carregar() {
-  const p = S.perfil.papel, rh = p === 'rh'
+  const p = S.perfil.papel, rh = p === 'rh', gestor = rh || p === 'chefe'
   const [setores, turnos, escalas, feriados, servidores, pessoais, perfis, convites, bat] = await Promise.all([
     q(sb.from('setores').select('*').order('nome')), q(sb.from('turnos').select('*').order('nome')), q(sb.from('escalas').select('*').order('nome')),
     q(sb.from('feriados').select('*').order('data')),
     p === 'totem' ? [] : q(sb.from('servidores').select(COLS_SERV).order('nome')),
-    rh ? q(sb.rpc('dados_pessoais')) : [], rh ? q(sb.from('perfis').select('*').order('nome')) : [],
-    rh ? q(sb.from('convites').select('*').order('criado_em', {ascending: false})) : [],
+    gestor ? q(sb.rpc('dados_pessoais')) : [], rh ? q(sb.from('perfis').select('*').order('nome')) : [],
+    gestor ? q(sb.from('convites').select('*').order('criado_em', {ascending: false})) : [],
     ['espelho', 'ponto'].includes(S.aba) ? batidasDoMes(mesAtual()) : []])
   const pes = Object.fromEntries(pessoais.map(x => [x.id, x]))
   servidores.forEach(s => Object.assign(s, pes[s.id] || {}))
@@ -184,14 +184,14 @@ const opcoes = (lista, sel, vazio) => (vazio != null ? `<option value="">${esc(v
 
 const TELAS = {
   servidores() {
-    const rh = S.perfil.papel === 'rh', f = S.filtro, busca = f.busca.toLowerCase()
+    const rh = ['rh', 'chefe'].includes(S.perfil.papel), f = S.filtro, busca = f.busca.toLowerCase()   // rh aqui = quem gerencia o cadastro
     const lista = S.d.servidores.filter(s => (!f.setor || s.setor_id === f.setor) &&
       (f.sit === 'todos' || (f.sit === 'ativos') === (s.situacao !== 'desligado')) &&
       (!busca || s.nome.toLowerCase().includes(busca) || s.matricula.includes(busca)))
     const titulo = S.perfil.papel === 'chefe' ? setorNome(S.perfil.setor_id) : 'Servidores'
     const botoes = rh ? `<button class="btn" data-a="novo">+ Novo servidor</button>
       <button class="btn gold" data-a="crachas" ${S.sel.size ? '' : 'disabled'}>Imprimir crachás (${S.sel.size})</button>` : ''
-    return cabecalho(rh ? 'Recursos Humanos' : 'Somente leitura', titulo, botoes) + (S.edit ? formServidor() : '') +
+    return cabecalho(S.perfil.papel === 'rh' ? 'Recursos Humanos' : rh ? 'Secretaria da unidade' : 'Somente leitura', titulo, botoes) + (S.edit ? formServidor() : '') +
       `<div class="card"><div class="filtros">
         <input type="search" placeholder="Buscar por nome ou matrícula" data-filtro="busca" value="${esc(f.busca)}">
         ${S.perfil.papel === 'chefe' ? '' : `<select data-filtro="setor">${opcoes(S.d.setores.map(s => [s.id, s.nome]), f.setor, 'Todos os setores')}</select>`}
@@ -257,11 +257,17 @@ const TELAS = {
 
   setores() {
     const qtd = id => S.d.servidores.filter(s => s.setor_id === id && s.situacao !== 'desligado').length
-    return cabecalho('Recursos Humanos', 'Setores') + `<div class="grid g2"><div class="card"><h3>Setores <small>${S.d.setores.length}</small></h3>
+    const temChefe = id => S.d.perfis.some(p => p.papel === 'chefe' && p.setor_id === id && p.ativo)
+    return cabecalho('Recursos Humanos', 'Setores') +
+      (S.convite ? `<div class="msg ok">Acesso da secretaria de <b>${esc(setorNome(S.convite.setor_id))}</b>: <code class="cod">${esc(S.convite.codigo)}</code>
+         <div class="sub">Entregue este código à secretaria. Ela abre o SIGEP, toca em <b>Criar conta</b> (e-mail e senha) e digita o código. Vale 7 dias, uma vez só.
+         Depois ela mesma cadastra os servidores da unidade.</div></div>` : '') +
+      `<div class="grid g2"><div class="card"><h3>Setores <small>${S.d.setores.length}</small></h3>
       ${S.d.setores.map(s => `<div class="row">${S.edit === s.id
         ? `<form class="acoes" data-f="setor" data-id="${s.id}" style="flex:1"><input name="nome" value="${esc(s.nome)}" required><button class="btn sm">Salvar</button><button type="button" class="btn ghost sm" data-a="cancelar">Cancelar</button></form>`
         : `<div><b>${esc(s.nome)}</b><div class="sub">${qtd(s.id)} servidor(es) em atividade</div></div>
-           <div class="acoes"><button class="btn ghost sm" data-a="editar" data-id="${s.id}">Renomear</button><button class="btn ghost sm" data-a="excluir-setor" data-id="${s.id}">Excluir</button></div>`}</div>`).join('')
+           <div class="acoes">${temChefe(s.id) ? '<span class="pill green">secretaria com acesso</span>' : `<button class="btn sm" data-a="acesso-setor" data-id="${s.id}">Gerar acesso da secretaria</button>`}
+             <button class="btn ghost sm" data-a="editar" data-id="${s.id}">Renomear</button><button class="btn ghost sm" data-a="excluir-setor" data-id="${s.id}">Excluir</button></div>`}</div>`).join('')
       || '<div class="vazio">Nenhum setor ainda.</div>'}</div>
       <div class="card"><h3>Novo setor</h3><form class="f" data-f="setor"><label class="span2">Nome<input name="nome" required placeholder="Ex.: Secretaria de Obras"></label>
       <div class="acoes"><button class="btn">Adicionar</button></div></form></div></div>`
@@ -314,25 +320,29 @@ const TELAS = {
   acessos() {
     const serv = Object.fromEntries(S.d.servidores.map(s => [s.id, s]))
     const pend = S.d.convites.filter(c => !c.usado_por && new Date(c.expira_em) > new Date())
-    return cabecalho('Recursos Humanos', 'Acessos') +
+    // a secretaria da unidade só gera acesso de servidor e de totem da própria unidade (o banco confere)
+    const unid = S.perfil.papel === 'chefe', papel = S.edit || (unid ? 'servidor' : 'chefe')
+    const papeis = unid ? [['servidor', 'Servidor (ver o próprio ponto)'], ['totem', 'Totem (tablet de bater ponto)']] : Object.entries(PAPEIS)
+    const setores = unid ? [[S.perfil.setor_id, setorNome(S.perfil.setor_id)]] : S.d.setores.map(s => [s.id, s.nome])
+    return cabecalho(unid ? setorNome(S.perfil.setor_id) : 'Recursos Humanos', 'Acessos') +
       (S.convite ? `<div class="msg ok">Código para <b>${esc(S.convite.nome)}</b>: <code class="cod">${esc(S.convite.codigo)}</code>
          <div class="sub">Vale por 7 dias e uma vez só. A pessoa cria a conta com e-mail e senha e digita este código.</div></div>` : '') +
       `<div class="grid g2"><div class="card"><h3>Gerar código de convite</h3>
         <form class="f" data-f="convite-novo">
-          <label class="span2">Perfil<select name="papel" required data-papel>${opcoes(Object.entries(PAPEIS), S.edit || 'chefe')}</select></label>
-          ${(S.edit || 'chefe') === 'servidor'
+          <label class="span2">Perfil<select name="papel" required data-papel>${opcoes(papeis, papel)}</select></label>
+          ${papel === 'servidor'
             ? `<label class="span2">Servidor<select name="servidor_id" required>${opcoes(S.d.servidores.filter(s => s.situacao !== 'desligado' && !S.d.perfis.some(p => p.servidor_id === s.id)).map(s => [s.id, `${s.nome} (${s.matricula})`]), null, 'Escolha')}</select></label>`
-            : `<label class="span2">Nome<input name="nome" required placeholder="${(S.edit || 'chefe') === 'totem' ? 'Ex.: Totem 1 – Escola' : 'Nome da pessoa'}"></label>`}
-          ${['chefe', 'totem'].includes(S.edit || 'chefe') ? `<label class="span2">Setor<select name="setor_id" required>${opcoes(S.d.setores.map(s => [s.id, s.nome]), null, 'Escolha')}</select></label>` : ''}
+            : `<label class="span2">Nome<input name="nome" required placeholder="${papel === 'totem' ? 'Ex.: Totem 1 – Escola' : 'Nome da pessoa'}"></label>`}
+          ${['chefe', 'totem'].includes(papel) ? `<label class="span2">Setor<select name="setor_id" required>${opcoes(setores, unid ? S.perfil.setor_id : null, 'Escolha')}</select></label>` : ''}
           <div class="acoes span2"><button class="btn">Gerar código</button></div>
         </form>
         ${pend.length ? `<h3 style="margin-top:16px">Códigos ainda não usados</h3>${pend.map(c => `<div class="row"><div><b>${esc(c.nome)}</b><div class="sub">${PAPEIS[c.papel]}${c.setor_id ? ' · ' + esc(setorNome(c.setor_id)) : ''} · vence ${new Date(c.expira_em).toLocaleDateString('pt-BR')}</div></div>
           <div class="acoes"><code class="cod">${esc(c.codigo)}</code><button class="btn ghost sm" data-a="cancelar-convite" data-id="${esc(c.codigo)}">Cancelar</button></div></div>`).join('')}` : ''}
       </div>
-      <div class="card"><h3>Quem tem acesso <small>${S.d.perfis.length}</small></h3>
+      ${unid ? '<div class="card"><h3>Como funciona</h3><p>Gere o código, entregue à pessoa e peça para ela abrir o SIGEP, tocar em <b>Criar conta</b> e digitar o código.</p><p class="sub">Para cortar o acesso de alguém ou de um totem perdido, fale com o RH.</p></div></div>' : `<div class="card"><h3>Quem tem acesso <small>${S.d.perfis.length}</small></h3>
         ${S.d.perfis.map(p => `<div class="row ${p.ativo ? '' : 'off'}"><div><b>${esc(p.nome)}</b><div class="sub">${PAPEIS[p.papel]}${p.setor_id ? ' · ' + esc(setorNome(p.setor_id)) : ''}${p.servidor_id ? ' · mat. ' + esc(serv[p.servidor_id]?.matricula) : ''}${p.ativo ? '' : ' · desativado'}</div></div>
           ${p.id === S.perfil.id ? '<span class="pill">você</span>' : `<button class="btn ghost sm" data-a="ativar" data-id="${p.id}" data-v="${!p.ativo}">${p.ativo ? 'Desativar' : 'Reativar'}</button>`}</div>`).join('')}
-        <p class="sub">Desativar corta o acesso na hora (inclusive de um totem perdido ou roubado).</p></div></div>`
+        <p class="sub">Desativar corta o acesso na hora (inclusive de um totem perdido ou roubado).</p></div></div>`}`
   },
 
   importar() {
@@ -416,7 +426,8 @@ function formServidor() {
       <label>Matrícula<input name="matricula" required maxlength="20" value="${esc(s.matricula)}"></label>
       <label class="span2">Nome completo<input name="nome" required minlength="3" value="${esc(s.nome)}"></label>
       <label>Cargo<input name="cargo" value="${esc(s.cargo)}" data-opcoes="Professor(a)|Merendeira|Vigia|Aux. serviços gerais|Secretário(a) escolar"></label>
-      <label>Setor<select name="setor_id" required>${opcoes(S.d.setores.map(x => [x.id, x.nome]), s.setor_id, 'Escolha')}</select></label>
+      <label>Setor<select name="setor_id" required>${S.perfil.papel === 'chefe' ? opcoes([[S.perfil.setor_id, setorNome(S.perfil.setor_id)]], S.perfil.setor_id)
+        : opcoes(S.d.setores.map(x => [x.id, x.nome]), s.setor_id, 'Escolha')}</select></label>
       <label>Horário<select name="jornada">${opcoes(jornadas, jor, 'Sem horário definido')}</select></label>
       <label>Início da escala (1º dia de trabalho)<input name="escala_inicio" type="date" value="${s.escala_inicio || ''}"></label>
       <label>Vínculo<select name="vinculo">${opcoes([['efetivo', 'Efetivo'], ['contratado', 'Contratado'], ['comissionado', 'Comissionado']], s.vinculo, '—')}</select></label>
@@ -513,7 +524,7 @@ const FORMS = {
     const nome = dadosForm(f).nome
     if (f.dataset.id) await q(sb.from('setores').update({nome}).eq('id', f.dataset.id))
     else await q(sb.from('setores').insert({nome}))
-    S.edit = null; return ['ok', 'Setor salvo.']
+    S.edit = null; return ['ok', f.dataset.id ? 'Setor salvo.' : `Setor "${nome}" criado. Agora toque em "Gerar acesso da secretaria" ao lado dele.`]
   },
   async turno(f) {
     const d = vazioNull(dadosForm(f)); delete d.dia
@@ -579,6 +590,10 @@ const ACOES = {
     $('#impressao').innerHTML = htmlEspelho(S.d.servidores.find(s => s.id === el.dataset.id))
     document.body.classList.add('imprimindo', 'imp-espelho'); print(); document.body.classList.remove('imprimindo', 'imp-espelho')
     return false
+  },
+  async 'acesso-setor'(el) {   // login da secretaria da unidade = convite de chefe daquele setor
+    const [c] = await q(sb.from('convites').insert({nome: 'Secretaria – ' + setorNome(el.dataset.id), papel: 'chefe', setor_id: el.dataset.id}).select('codigo, nome, setor_id'))
+    S.convite = c; scrollTo(0, 0)
   },
   async 'cancelar-convite'(el) { await q(sb.from('convites').delete().eq('codigo', el.dataset.id)); return ['ok', 'Código cancelado.'] },
   async ativar(el) { await q(sb.from('perfis').update({ativo: el.dataset.v === 'true'}).eq('id', el.dataset.id)) },

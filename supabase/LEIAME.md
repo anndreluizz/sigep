@@ -16,7 +16,8 @@ Roda o banco num Postgres de verdade (PGlite) e tenta o uso certo e o indevido c
    insert into perfis (id, nome, papel)
    select id, 'Nome do RH', 'rh' from auth.users where email = 'rh@exemplo.am.gov.br';
    ```
-4. Daqui em diante o RH dá os acessos pelo próprio sistema: gera um **código de convite**
+4. Em **Setores**, o RH cria cada unidade (escola) e toca em **Gerar acesso da secretaria**: a secretaria cria a conta, digita o código e passa a cadastrar os servidores da unidade.
+5. Daqui em diante o RH dá os outros acessos pelo próprio sistema: gera um **código de convite**
    (chefe de setor, Prefeito, servidor ou totem); a pessoa cria a conta e informa o código.
 
 ## Quem pode o quê
@@ -24,7 +25,7 @@ Roda o banco num Postgres de verdade (PGlite) e tenta o uso certo e o indevido c
 |---|---|---|
 | RH | Cadastrar e desligar servidores, setores, turnos, escalas e feriados; gerar convites; ajustar batidas (sempre com motivo); decidir e lançar justificativas de qualquer setor; fechar e reabrir o mês | Apagar o histórico |
 | Prefeito | Ver todos os setores, servidores, batidas, espelhos e justificativas | Alterar qualquer coisa |
-| Chefe de setor | Ver a equipe, as batidas e o espelho do seu setor; aprovar/recusar pedidos e lançar abonos do seu setor | Ver outros setores; cadastrar; ajustar batidas direto |
+| Secretaria / chefe do setor | Cadastrar e editar os servidores da própria unidade (inclusive CPF, telefone e crachá); gerar convite de servidor e de totem da unidade; ver equipe, batidas e espelho; aprovar/recusar pedidos e lançar abonos | Ver ou mexer em outra unidade; transferir servidor; gerar acesso de chefe/RH; ajustar batidas direto |
 | Servidor | Ver o próprio cadastro, espelho e histórico; pedir justificativa ("esqueci de bater", atestado, etc.) e desistir enquanto ninguém respondeu | Ver colegas; bater ponto pelo celular; aprovar o próprio pedido |
 | Totem | Registrar entrada e saída dos servidores do seu setor (`registrar_batida`) | Ler qualquer dado |
 

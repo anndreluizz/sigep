@@ -169,6 +169,31 @@ for (const email of ['rh@demo', 'chefe@demo', 'prefeito@demo', 'servidor@demo'])
   }
 }
 
+// ---------- RH cria a escola e o acesso da secretaria; a secretaria cadastra os servidores dela ----------
+await entrar('rh@demo'); run(`S.aba = 'setores'; S.convite = null`)
+await form('setor', [['nome', 'E.M. Nova Esperança']])
+ok(msg()?.[1]?.includes('Gerar acesso da secretaria'), 'criou o setor e sugere gerar o acesso: ' + msg()?.[1])
+const novaEsc = run(`S.d.setores.find(s => s.nome === 'E.M. Nova Esperança').id`)
+await acao('acesso-setor', {id: novaEsc})
+const codSec = run('S.convite?.codigo'); run('render()')
+ok(codSec?.length === 10 && tela().includes(codSec) && tela().includes('Acesso da secretaria'), 'código da secretaria aparece em Setores')
+await acao('sair')
+const {data: sec} = await cliente.auth.signUp({email: 'secretaria@novaesperanca', password: 'senha-forte-2'})
+await run('entrou')(sec.session.user); await form('convite', [['codigo', codSec]])
+ok(run('S.perfil?.papel') === 'chefe' && run('S.perfil.setor_id') === novaEsc, 'secretaria entrou como gestão da Nova Esperança')
+run(`S.aba = 'servidores'; S.edit = 'novo'; render()`)
+ok(tela().includes('+ Novo servidor') && (tela().match(/<option value="[^"]+"/g) || []).filter(o => o.includes(novaEsc)).length === 1 && !tela().includes('E.M. São Francisco de Assis</option>'), 'secretaria: botão de cadastrar e só a própria escola no formulário')
+await form('servidor', [['matricula', '0501'], ['nome', 'Raimunda Souza'], ['cargo', 'Merendeira'], ['setor_id', novaEsc], ['jornada', 't:' + matutino],
+  ['escala_inicio', ''], ['vinculo', 'contratado'], ['admissao', ''], ['cpf', '987.654.321-00'], ['telefone', '(97) 9 9111-2222'], ['situacao', 'ativo']])
+ok(msg()?.[0] === 'ok' && run(`S.d.servidores.find(s => s.matricula === '0501')?.cpf`) === '98765432100', 'secretaria cadastra servidora e vê o CPF dela: ' + msg()?.[1])
+ok(run('S.d.servidores.every(s => s.setor_id === "' + novaEsc + '")'), 'secretaria só vê os servidores da própria escola')
+run(`S.edit = 'novo'`); await form('servidor', [['matricula', '0502'], ['nome', 'Fora da Escola'], ['setor_id', escola], ['jornada', '']])
+ok(msg()?.[0] === 'erro', 'secretaria não cadastra em outra escola: ' + msg()?.[1])
+run(`S.aba = 'acessos'; S.edit = null; S.convite = null; render()`)
+ok(tela().includes('Totem (tablet') && !tela().includes('>RH<') && !tela().includes('Quem tem acesso'), 'acessos da secretaria: só servidor e totem')
+await form('convite-novo', [['papel', 'totem'], ['nome', 'Totem – Nova Esperança'], ['setor_id', novaEsc]])
+ok(run('S.convite?.codigo')?.length === 10, 'secretaria gera o convite do totem: ' + msg()?.[1])
+
 // ---------- justificativas: servidora pede, chefe decide, espelho muda ----------
 const ANA = '40000000-0000-4000-8000-000000000001', CARLOS = '40000000-0000-4000-8000-000000000002'
 const decidir = (id, aprovar, resposta = '') => run(`executar(() => FORMS.decidir(${JSON.stringify({campos: [['resposta', resposta]], dataset: {id}})}, {submitter: {value: '${aprovar ? 1 : 0}'}}))`)
