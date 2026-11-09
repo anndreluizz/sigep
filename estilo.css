@@ -97,3 +97,35 @@ main.wrap{padding-top:22px;padding-bottom:30px}
 .et-invalido>input,.et-invalido>select,.et-invalido>textarea,.et-invalido input:invalid{border-color:var(--red);background:var(--redbg)}
 .et-erro{color:var(--red);font-size:12.5px;font-weight:600;margin-top:4px}
 .et-geral{background:var(--redbg);padding:9px 12px;border-radius:9px;margin:0}
+
+/* ---------- letra maior e campos em destaque (mesmo bloco no SIGEP e no TNT Esportes) ---------- */
+/* só na tela: a impressão (crachás, espelho, súmula) mantém os tamanhos dela */
+@media screen{
+  body{font-size:17px}
+  .eyebrow{font-size:12.5px}
+  .head h2{font-size:34px}
+  .card h3{font-size:22px}
+  .sub,.note{font-size:14px}
+  .info,.msg{font-size:16px}
+  .pill{font-size:13px;padding:3px 10px}
+  table{font-size:16px} th{font-size:12.5px} td{padding:10px 8px}
+  .tabs a{font-size:16px}
+  .btn{font-size:16px;min-height:46px;padding:11px 18px}
+  .btn.sm{font-size:14.5px;min-height:38px;padding:7px 13px}
+  /* campos: rótulo forte e caixa grande com borda visível */
+  form label{font-size:15.5px;font-weight:700;color:var(--ink)}
+  form label:focus-within{color:var(--g7)}
+  form input:not([type=checkbox]):not([type=radio]):not([type=file]),form select,form textarea{font-size:18px;min-height:50px;padding:11px 14px;border:2px solid #aebedb;border-radius:11px;background:#fff;box-shadow:inset 0 1px 2px rgba(13,47,115,.06)}
+  form textarea{min-height:84px}
+  form input:hover,form select:hover,form textarea:hover{border-color:var(--g7)}
+  /* campo obrigatório ainda por preencher: fundo azul-claro (some quando preenche certo) */
+  form input:required:invalid,form select:required:invalid,form textarea:required:invalid{background:var(--g1)}
+  /* campo em uso: borda azul e brilho verde (cores de Tonantins) */
+  form input:focus,form select:focus,form textarea:focus{border-color:var(--g7);outline:4px solid rgba(45,179,93,.4);outline-offset:0;background:#fff}
+  form input[type=checkbox]{width:22px;height:22px;accent-color:var(--g7)}
+  .et-invalido>input,.et-invalido>select,.et-invalido>textarea,.et-invalido input:invalid{border-color:var(--red)!important;background:var(--redbg)!important}
+  .et-chip{font-size:15.5px;min-height:44px;padding:9px 16px}
+  .et-topo{font-size:14.5px}.et-topo b{font-size:15.5px}
+  .et-trilho{height:10px}
+  .et-erro{font-size:14.5px}
+}
