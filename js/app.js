@@ -302,6 +302,7 @@ const TELAS = {
     return cabecalho(S.perfil.papel === 'chefe' ? setorNome(S.perfil.setor_id) : 'Frequência', 'Frequência do mês') + `<div class="card"><div class="filtros">
         <input type="month" data-mes value="${mes}" aria-label="Mês">
         ${S.perfil.papel === 'chefe' ? '' : `<select data-filtro="setor">${opcoes(S.d.setores.map(x => [x.id, x.nome]), f.setor, 'Todos os setores')}</select>`}
+        <button class="btn ghost" data-a="imprimir-semed" title="Uma folha por categoria (01 Pedagogo … 12 PACCET), no modelo da SEMED">Folha SEMED</button>
       </div><div class="tabela"><table><thead><tr><th>Servidor</th><th>Setor</th><th>Previsto</th><th>Trabalhado</th><th>Saldo</th><th>Faltas</th><th>Atrasos</th><th>Pendências</th><th></th></tr></thead><tbody>
       ${linhas.map(({s, tot, turno}) => `<tr><td>${esc(s.nome)}<div class="sub">mat. ${esc(s.matricula)}${turno ? '' : ' · sem horário definido'}</div></td><td>${esc(setorNome(s.setor_id))}</td>
         <td>${duracao(tot.previsto)}</td><td>${duracao(tot.trabalhado)}</td><td><b style="color:var(${tot.saldo < 0 ? '--red' : '--goldink'})">${duracao(tot.saldo)}</b></td>
@@ -532,6 +533,62 @@ function formServidor() {
     </form></div>`
 }
 
+/* ============================== folha de frequência da SEMED ============================== */
+// Uma folha por categoria, com a numeração das planilhas que a escola entrega à SEMED (01 a 12).
+// A categoria sai do cargo (e do vínculo, no caso do professor); quem não casar com nenhuma vai para "13 – sem categoria".
+// Os textos são os da coluna APLICAÇÃO das planilhas (ex.: "AUX.SERV.GER.", "ASSISTENTE ADM./MANHÃ", "PROFESSOR/VESP.", "PAE").
+const CATEGORIAS_SEMED = [
+  ['01', 'PEDAGOGO', (c) => /pe[dg]agog/.test(c) && !/apoio/.test(c)],
+  ['02', 'AUX. ADMINISTRATIVO', (c) => /administrativ|\badm\b|secretari/.test(c)],
+  ['03', 'AUX. SERV. GERAIS', (c) => /serv.*ger|\basg\b|zelador|limpeza/.test(c)],
+  ['04', 'GESTORA', (c) => /gest|diretor/.test(c)],
+  ['05', 'MERENDEIRO(A)', (c) => /merend|cozinh/.test(c)],
+  ['06', 'PROFESSOR EFETIVO', (c, v) => /professor|instrutor/.test(c) && !/paccet/.test(c) && v === 'efetivo'],
+  ['07', 'VIGIA', (c) => /vigia|vigilan|porteir/.test(c)],
+  ['08', 'APOIO PEDAGÓGICO', (c) => /apoio pedag/.test(c)],
+  ['09', 'PROFESSOR CONTRATO', (c) => /professor|instrutor/.test(c) && !/paccet/.test(c)],
+  ['10', 'AVE', (c) => /\bpae\b|\bave\b|apoio escolar|vida escolar|cuidador/.test(c)],
+  ['11', 'BIBLIOTECÁRIO', (c) => /bibliotec/.test(c)],
+  ['12', 'PACCET', (c) => /paccet/.test(c)],
+]
+const categoriaSemed = s => CATEGORIAS_SEMED.find(([, , f]) => f(semAcento(s.cargo), s.vinculo)) || ['13', 'SEM CATEGORIA (conferir o cargo)']
+const SIGLA_J = {'Atestado médico': 'AM', 'Férias': 'F', 'Licença / afastamento': 'LE'}
+// um dia da folha de ponto → o que vai na célula: 1 presença, 0 falta, sigla do abono; vazio em folga, feriado e dia que ainda não fechou
+function valorSemed(s, d) {
+  if (!d.fechado || !d.prev) return ''
+  if (s.situacao === 'ferias') return 'F'
+  if (s.situacao === 'afastado') return 'LE'
+  const sigla = d.oc.map(o => SIGLA_J[o[0]]).find(Boolean)
+  if (sigla) return sigla
+  return d.oc.some(o => o[0] === 'Falta' || o[0].startsWith('Faltou no')) ? 0 : 1
+}
+function htmlFolhaSemed(setorId, mes) {
+  const [ini, fim] = limitesMes(mes), dias = []
+  for (let d = ini; d <= fim; d = addDia(d, 1)) dias.push(d)
+  const [a, m] = mes.split('-'), nomeMes = new Date(Date.UTC(+a, +m - 1, 15)).toLocaleDateString('pt-BR', {month: 'long', timeZone: 'UTC'}).toUpperCase()
+  const lista = S.d.servidores.filter(s => s.setor_id === setorId && (!s.desligado_em || s.desligado_em >= ini)).sort((x, y) => x.nome.localeCompare(y.nome))
+  const grupos = {}
+  for (const s of lista) { const [n, t] = categoriaSemed(s); (grupos[n] ??= {t, ss: []}).ss.push(s) }
+  const SIT = {efetivo: 'EFETIVO', contratado: 'CONTRATO', comissionado: 'COMISSIONADO'}, F = FOLHA_SEMED, col = dias.length + 5
+  const DS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB']
+  return Object.keys(grupos).sort().map(n => { const {t, ss} = grupos[n]
+    const linhas = ss.map((s, i) => { const {dias: ds} = espelhoMes(s, S.bat, mes, {...S.d, justificativas: S.just}, hoje()), v = ds.map(d => valorSemed(s, d))
+      return `<tr><td>${i + 1}</td><td class="nm">${esc(s.nome.toUpperCase())}</td><td>${SIT[s.vinculo] || ''}</td><td>${esc((s.cargo || '').toUpperCase())}</td>
+        ${v.map(x => `<td class="${x === 0 ? 'falta' : ''}">${x}</td>`).join('')}<td><b>${v.filter(x => x === 0).length}</b></td></tr>` }).join('')
+    return `<div class="semed"><table>
+      <tr><td colspan="4" rowspan="3" class="brasao"><img src="img/brasao.png" alt=""></td><td colspan="${dias.length - 9}" class="tit">FOLHA DE FREQUÊNCIA SEMED: ${esc(setorNome(setorId).toUpperCase())}</td><td colspan="10" class="tit">MÊS/ANO: ${nomeMes}/${a}</td></tr>
+      <tr><td colspan="${dias.length + 1}">ÓRGÃO DE DESTINO: ${esc(F.destino)}</td></tr>
+      <tr><td colspan="${dias.length + 1}" class="cat">PLANILHA ${n} – ${esc(t)}</td></tr>
+      <tr><td colspan="4"><b>${esc(NOME_INSTITUICAO.toUpperCase())}</b></td><td colspan="${dias.length + 1}">SECRETÁRIO MUNICIPAL DE EDUCAÇÃO: ${esc(F.secretario)}</td></tr>
+      <tr><td colspan="4"><b>${esc(F.secretaria)}</b></td><td colspan="${dias.length + 1}"></td></tr>
+      <tr><td colspan="4">CNPJ: ${esc(F.cnpj)}</td><td colspan="${dias.length + 1}">PERÍODO: ${dataBR(ini)} A ${dataBR(fim)}</td></tr>
+      <tr class="cab"><td colspan="4"></td>${dias.map(d => `<td>${DS[new Date(d + 'T12:00:00Z').getUTCDay()]}</td>`).join('')}<td rowspan="2">TOTAL DE FALTAS</td></tr>
+      <tr class="cab"><td>Nº</td><td>NOME DO SERVIDOR</td><td>SITUAÇÃO</td><td>APLICAÇÃO</td>${dias.map(d => `<td>${d.slice(8)}</td>`).join('')}</tr>
+      ${linhas}
+      <tr><td colspan="${col}" class="leg">0 (ZERO) = FALTA &nbsp; 1 (UM) = PRESENÇA<br>AM = ATESTADO MÉDICO, LM = LICENÇA MATERNIDADE, LP = LICENÇA PATERNIDADE, LE = LICENÇA ESPECIAL, F = FÉRIAS, SR = SEM REMUNERAÇÃO</td></tr>
+    </table><div class="ass"><div>Servidor(a) Responsável</div><div>Secretário Municipal</div></div></div>` }).join('')
+}
+
 /* ============================== crachás ============================== */
 function imprimirCrachas() {
   const vistos = new Set(), lista = S.d.servidores.filter(s => S.sel.has(s.id) && !(s.cpf && vistos.has(s.cpf)) && (vistos.add(s.cpf), true))
@@ -685,6 +742,13 @@ const ACOES = {
   },
   'ver-espelho'(el) { S.esp = el.dataset.id; scrollTo(0, 0); return false },
   'voltar-espelho'() { S.esp = null; return false },
+  'imprimir-semed'() {
+    const setor = S.perfil.papel === 'chefe' ? S.perfil.setor_id : S.filtro.setor
+    if (!setor) return ['info', 'Escolha a unidade (setor) para imprimir a folha da SEMED.']
+    $('#impressao').innerHTML = htmlFolhaSemed(setor, mesAtual())
+    document.body.classList.add('imprimindo'); print(); document.body.classList.remove('imprimindo')
+    return false
+  },
   'imprimir-espelho'(el) {
     $('#impressao').innerHTML = htmlEspelho(S.d.servidores.find(s => s.id === el.dataset.id))
     document.body.classList.add('imprimindo', 'imp-espelho'); print(); document.body.classList.remove('imprimindo', 'imp-espelho')
