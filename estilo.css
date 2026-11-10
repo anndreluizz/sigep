@@ -80,6 +80,11 @@ tr.off td{color:var(--muted)}
 .semed td.leg{white-space:normal;font-size:6.5pt}
 .semed .ass{display:grid;grid-template-columns:1fr 1fr;gap:40mm;margin:14mm 20mm 0;text-align:center}
 .semed .ass div{border-top:.2mm solid #000;padding-top:1mm}
+@media screen{
+  .semed-tela{overflow-x:auto}
+  .semed-tela .semed{background:#fff;font-size:11px;padding:12px;margin-top:14px;border:1px solid #cbd5e1;border-radius:8px;min-width:1100px}
+  .semed-tela .semed td{padding:3px 4px}.semed-tela .semed .tit{font-size:13px}.semed-tela .semed .cat{font-size:12px}.semed-tela .semed .ass{margin-top:30px}.semed-tela .semed td.leg{font-size:11px}
+}
 @page retrato{size:A4 portrait;margin:10mm}
 @media print{
   @page{size:A4 landscape;margin:4mm}

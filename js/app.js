@@ -2,7 +2,7 @@
 // a tela só esconde o que o perfil não usa. `sb` é o cliente do Supabase (ou o local, na demonstração).
 let sb
 const S = {perfil: null, email: null, aba: null, d: {}, msg: null, edit: null, sel: new Set(), imp: null, filtro: {setor: '', busca: '', sit: 'ativos'}, convite: null,
-  mes: null, esp: null, bat: [],   // espelho: mês 'aaaa-mm', servidor aberto, batidas do mês
+  mes: null, esp: null, semed: false, bat: [],   // espelho: mês 'aaaa-mm', servidor aberto, batidas do mês
   just: [], pedidos: [], jtipo: 'atestado'}   // justificativas do mês, pedidos recentes, tipo escolhido no formulário
 const $ = s => document.querySelector(s)
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]))
@@ -91,7 +91,8 @@ const LIMITE_PLANTAO_MIN = 26 * 60   // igual a limite_plantao_horas() no banco
 
 // Um servidor, um mês → linhas por dia e totais. Função pura: não lê S nem o banco (testável).
 // ponytail: férias/afastamento usam a situação atual, não um histórico por data; registrar períodos quando o RH pedir.
-const TIPOS_J = {atestado: 'Atestado médico', ferias: 'Férias', licenca: 'Licença / afastamento', servico_externo: 'Serviço externo',
+const TIPOS_J = {atestado: 'Atestado médico', ferias: 'Férias', licenca: 'Licença especial / afastamento', licenca_maternidade: 'Licença maternidade',
+  licenca_paternidade: 'Licença paternidade', sem_remuneracao: 'Licença sem remuneração', servico_externo: 'Serviço externo',
   abono: 'Outro motivo (abono)', batida: 'Esqueci de bater o ponto'}
 function espelhoMes(s, batidas, mes, {turnos, escalas, feriados, justificativas = []}, hojeStr, agoraAbs = Math.round(Date.now() / 6e4)) {
   const just = justificativas.filter(j => j.servidor_id === s.id && j.status !== 'recusada')
@@ -295,6 +296,7 @@ const TELAS = {
   espelho() {
     const s = S.esp && S.d.servidores.find(x => x.id === S.esp)
     if (s) return telaEspelho(s, true)
+    if (S.semed) return telaSemed()
     const f = S.filtro, mes = mesAtual(), lista = S.d.servidores.filter(x => x.situacao !== 'desligado' && (!f.setor || x.setor_id === f.setor))
     const linhas = lista.map(x => ({s: x, ...espelhoMes(x, S.bat, mes, {...S.d, justificativas: S.just}, hoje())}))
       .sort((a, b) => b.tot.faltas + b.tot.pendencias - (a.tot.faltas + a.tot.pendencias) || a.s.nome.localeCompare(b.s.nome))
@@ -302,7 +304,7 @@ const TELAS = {
     return cabecalho(S.perfil.papel === 'chefe' ? setorNome(S.perfil.setor_id) : 'Frequência', 'Frequência do mês') + `<div class="card"><div class="filtros">
         <input type="month" data-mes value="${mes}" aria-label="Mês">
         ${S.perfil.papel === 'chefe' ? '' : `<select data-filtro="setor">${opcoes(S.d.setores.map(x => [x.id, x.nome]), f.setor, 'Todos os setores')}</select>`}
-        <button class="btn ghost" data-a="imprimir-semed" title="Uma folha por categoria (01 Pedagogo … 12 PACCET), no modelo da SEMED">Folha SEMED</button>
+        <button class="btn ghost" data-a="ver-semed" title="Uma folha por categoria (01 Pedagogo … 12 PACCET), no modelo da SEMED">Folha SEMED</button>
       </div><div class="tabela"><table><thead><tr><th>Servidor</th><th>Setor</th><th>Previsto</th><th>Trabalhado</th><th>Saldo</th><th>Faltas</th><th>Atrasos</th><th>Pendências</th><th></th></tr></thead><tbody>
       ${linhas.map(({s, tot, turno}) => `<tr><td>${esc(s.nome)}<div class="sub">mat. ${esc(s.matricula)}${turno ? '' : ' · sem horário definido'}</div></td><td>${esc(setorNome(s.setor_id))}</td>
         <td>${duracao(tot.previsto)}</td><td>${duracao(tot.trabalhado)}</td><td><b style="color:var(${tot.saldo < 0 ? '--red' : '--goldink'})">${duracao(tot.saldo)}</b></td>
@@ -552,7 +554,8 @@ const CATEGORIAS_SEMED = [
   ['12', 'PACCET', (c) => /paccet/.test(c)],
 ]
 const categoriaSemed = s => CATEGORIAS_SEMED.find(([, , f]) => f(semAcento(s.cargo), s.vinculo)) || ['13', 'SEM CATEGORIA (conferir o cargo)']
-const SIGLA_J = {'Atestado médico': 'AM', 'Férias': 'F', 'Licença / afastamento': 'LE'}
+const SIGLA_J = {'Atestado médico': 'AM', 'Férias': 'F', 'Licença especial / afastamento': 'LE', 'Licença maternidade': 'LM', 'Licença paternidade': 'LP',
+  'Licença sem remuneração': 'SR'}
 // um dia da folha de ponto → o que vai na célula: 1 presença, 0 falta, sigla do abono; vazio em folga, feriado e dia que ainda não fechou
 function valorSemed(s, d) {
   if (!d.fechado || !d.prev) return ''
@@ -561,6 +564,16 @@ function valorSemed(s, d) {
   const sigla = d.oc.map(o => SIGLA_J[o[0]]).find(Boolean)
   if (sigla) return sigla
   return d.oc.some(o => o[0] === 'Falta' || o[0].startsWith('Faltou no')) ? 0 : 1
+}
+const setorSemed = () => S.perfil.papel === 'chefe' ? S.perfil.setor_id : S.filtro.setor
+// a mesma folha que vai para a impressora, na tela, para a secretaria conferir antes de imprimir
+function telaSemed() {
+  const setor = setorSemed(), html = htmlFolhaSemed(setor, mesAtual())
+  return cabecalho(setorNome(setor), 'Folha de frequência SEMED', `<button class="btn ghost" data-a="voltar-semed">← Voltar</button>
+      <button class="btn gold" data-a="imprimir-semed">Imprimir</button>`) + `<div class="card"><div class="filtros"><input type="month" data-mes value="${mesAtual()}" aria-label="Mês"></div>
+    <p class="sub">Uma planilha por categoria, na ordem da SEMED (01 a 12). Confira nomes, situação e as faltas; o que estiver errado se corrige na folha de ponto da pessoa.
+    Quem aparecer em "13 – sem categoria" está com o cargo escrito de um jeito que o sistema não reconheceu.</p>
+    ${html ? `<div class="semed-tela">${html}</div>` : '<div class="vazio">Nenhum servidor nesta unidade.</div>'}</div>`
 }
 function htmlFolhaSemed(setorId, mes) {
   const [ini, fim] = limitesMes(mes), dias = []
@@ -742,10 +755,13 @@ const ACOES = {
   },
   'ver-espelho'(el) { S.esp = el.dataset.id; scrollTo(0, 0); return false },
   'voltar-espelho'() { S.esp = null; return false },
+  'ver-semed'() {
+    if (!setorSemed()) return ['info', 'Escolha a unidade (setor) para ver a folha da SEMED.']
+    S.semed = true; scrollTo(0, 0); return false
+  },
+  'voltar-semed'() { S.semed = false; return false },
   'imprimir-semed'() {
-    const setor = S.perfil.papel === 'chefe' ? S.perfil.setor_id : S.filtro.setor
-    if (!setor) return ['info', 'Escolha a unidade (setor) para imprimir a folha da SEMED.']
-    $('#impressao').innerHTML = htmlFolhaSemed(setor, mesAtual())
+    $('#impressao').innerHTML = htmlFolhaSemed(setorSemed(), mesAtual())
     document.body.classList.add('imprimindo'); print(); document.body.classList.remove('imprimindo')
     return false
   },
@@ -818,7 +834,7 @@ function ligarEventos() {
     if (el.dataset.filtro === 'busca') { S.filtro.busca = el.value; render(); const b = $('[data-filtro="busca"]'); b.focus(); b.setSelectionRange(b.value.length, b.value.length) }
   })
   addEventListener('hashchange', () => {
-    S.aba = location.hash.slice(1); S.edit = null; S.msg = null; S.convite = null; S.esp = null
+    S.aba = location.hash.slice(1); S.edit = null; S.msg = null; S.convite = null; S.esp = null; S.semed = false
     if (S.perfil && ['espelho', 'ponto', 'painel'].includes(S.aba)) executar(async () => {}); else render()   // espelho e painel buscam as batidas
   })
 }
