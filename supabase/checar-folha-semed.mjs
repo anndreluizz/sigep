@@ -29,12 +29,14 @@ const T = {id: 't', nome: 'Matutino', entrada: '07:00:00', saida: '11:00:00', di
 const sv = (id, nome, cargo, vinculo, situacao = 'ativo') => ({id, nome, cargo, vinculo, situacao, setor_id: 'e', turno_id: 't', matricula: id})
 const bat = (id, dia) => [{servidor_id: id, tipo: 'entrada', em: dia + 'T11:00:00Z'}, {servidor_id: id, tipo: 'saida', em: dia + 'T15:00:00Z'}]
 run(`S.d = ${JSON.stringify({setores: [{id: 'e', nome: 'E. M. São Francisco de Assis'}], turnos: [T], escalas: [], feriados: [{data: '2026-09-07', nome: 'Independência'}],
-  servidores: [sv('a', 'Ana', 'Pedagoga', 'efetivo'), sv('b', 'Bia', 'Professor(a)', 'contratado'), sv('c', 'Caio', 'Professor(a)', 'efetivo', 'ferias')]})}`)
+  servidores: [sv('a', 'Ana', 'Pedagoga', 'efetivo'), sv('b', 'Bia', 'Professor(a)', 'contratado'), sv('c', 'Caio', 'Professor(a)', 'efetivo', 'ferias'),
+  {...sv('d', 'Davi', 'Pedagogo', 'contratado'), criado_em: '2026-09-15T15:00:00Z'}]})}`)
 run(`S.bat = ${JSON.stringify([...bat('a', '2026-09-01'), ...bat('a', '2026-09-04'), ...bat('b', '2026-09-01')])}`)
 run(`S.just = [{servidor_id: 'a', tipo: 'atestado', status: 'aprovada', inicio: '2026-09-03', fim: '2026-09-03'},
   {servidor_id: 'b', tipo: 'licenca_maternidade', status: 'aprovada', inicio: '2026-09-02', fim: '2026-09-30'}]`)
 const dia = (id, d) => run(`(() => { const s = S.d.servidores.find(x => x.id === '${id}'); return valorSemed(s, espelhoMes(s, S.bat, '2026-09', {...S.d, justificativas: S.just}, hoje()).dias[${d - 1}]) })()`)
 assert.equal(dia('a', 1), 1); assert.equal(dia('a', 2), 0); assert.equal(dia('a', 3), 'AM'); assert.equal(dia('a', 4), 1)
+assert.equal(dia('d', 14), ''); assert.equal(dia('d', 15), 0)   // antes de entrar no SIGEP não é falta
 assert.equal(dia('b', 2), 'LM'); assert.equal(dia('b', 30), 'LM'); assert.equal(dia('a', 5), ''); assert.equal(dia('a', 7), ''); assert.equal(dia('c', 1), 'F')
 
 const html = run(`htmlFolhaSemed('e', '2026-09')`)

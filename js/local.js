@@ -137,7 +137,7 @@ async function semearDemo(cliente) {
       ('40000000-0000-4000-8000-000000000004', '0330', 'Paulo Henrique Dias', 'Motorista', '10000000-0000-4000-8000-000000000003', '20000000-0000-4000-8000-000000000002', 'efetivo', null);
     insert into servidores (matricula, nome, cargo, setor_id, escala_id, escala_inicio, vinculo) values
       ('0105', 'Marta Oliveira', 'Vigia', '10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '2026-11-01', 'efetivo');
-    update servidores set codigo = 'DEMO-' || matricula;
+    update servidores set codigo = 'DEMO-' || matricula, criado_em = '2026-01-01 12:00-04';   -- a folha só conta a partir do cadastro
     insert into perfis (id, nome, papel, setor_id, servidor_id) values
       ('00000000-0000-4000-8000-000000000001', 'Setor de RH', 'rh', null, null),
       ('00000000-0000-4000-8000-000000000002', 'Gestora da escola', 'chefe', '10000000-0000-4000-8000-000000000001', null),

@@ -30,7 +30,7 @@ const traduz = e => e.code === 'P0001' || /[áéíóúãõç]/i.test(e.message) 
 async function q(p) { const {data, error} = await p; if (error) throw new Error(traduz(error)); return data }
 
 /* ============================== dados ============================== */
-const COLS_SERV = 'id, matricula, nome, cargo, setor_id, turno_id, turnos_extra, escala_id, escala_inicio, situacao, desligado_em, vinculo, admissao'
+const COLS_SERV = 'id, matricula, nome, cargo, setor_id, turno_id, turnos_extra, escala_id, escala_inicio, situacao, desligado_em, vinculo, admissao, criado_em'
 async function carregar() {
   if (S.aba === 'painel') S.mes = null   // o painel é sempre o mês de hoje
   const p = S.perfil.papel, rh = p === 'rh', gestor = rh || p === 'chefe'
@@ -104,8 +104,10 @@ function espelhoMes(s, batidas, mes, {turnos, escalas, feriados, justificativas 
   const [ini, fim] = limitesMes(mes)
   const faixa = t => { const ent = toMin(t.entrada); let sai = toMin(t.saida); if (sai <= ent) sai += 1440
     return {t, ent, sai, min: sai - ent - (t.saida_almoco ? toMin(t.retorno_almoco) - toMin(t.saida_almoco) : 0)} }
+  // o ponto só conta a partir do dia em que a pessoa entrou no SIGEP: antes disso não há batida para conferir
+  const desde = s.criado_em && new Date(s.criado_em).toLocaleDateString('sv-SE', {timeZone: 'America/Manaus'})
   const periodos = dia => {   // períodos de trabalho previstos no dia
-    if (!turno || (s.admissao && dia < s.admissao) || (s.desligado_em && dia > s.desligado_em)) return []
+    if (!turno || (s.admissao && dia < s.admissao) || (desde && dia < desde) || (s.desligado_em && dia > s.desligado_em)) return []
     if (escala) { const n = Math.round((Date.parse(dia) - Date.parse(s.escala_inicio)) / 864e5)
       return n >= 0 && n % (escala.dias_trabalho + escala.dias_descanso) < escala.dias_trabalho ? [faixa(turno)] : [] }
     if (feriado[dia]) return []
