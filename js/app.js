@@ -340,7 +340,9 @@ const TELAS = {
 
   totem() {
     return cabecalho('Totem', setorNome(S.perfil.setor_id)) +
-      '<div class="card">Este acesso é de totem. A tela de leitura do crachá pela câmera chega na próxima etapa.</div>'
+      `<div class="card"><p>Este acesso é de totem: o ponto é batido na tela do totem, com a câmera lendo o crachá.</p>
+        <a class="btn" href="${/demo\.html$/.test(location.pathname || '') ? 'totem.html?demo' : 'totem.html'}">Abrir o totem (câmera)</a>
+        <p class="sub" style="margin-top:10px">No tablet, abra direto o endereço do totem (…/sigep/totem.html) e use "Adicionar à tela inicial" para ele abrir em tela cheia.</p></div>`
   },
 
   setores() {
