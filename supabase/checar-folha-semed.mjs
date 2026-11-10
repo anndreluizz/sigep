@@ -31,10 +31,11 @@ const bat = (id, dia) => [{servidor_id: id, tipo: 'entrada', em: dia + 'T11:00:0
 run(`S.d = ${JSON.stringify({setores: [{id: 'e', nome: 'E. M. São Francisco de Assis'}], turnos: [T], escalas: [], feriados: [{data: '2026-09-07', nome: 'Independência'}],
   servidores: [sv('a', 'Ana', 'Pedagoga', 'efetivo'), sv('b', 'Bia', 'Professor(a)', 'contratado'), sv('c', 'Caio', 'Professor(a)', 'efetivo', 'ferias')]})}`)
 run(`S.bat = ${JSON.stringify([...bat('a', '2026-09-01'), ...bat('a', '2026-09-04'), ...bat('b', '2026-09-01')])}`)
-run(`S.just = [{servidor_id: 'a', tipo: 'atestado', status: 'aprovada', inicio: '2026-09-03', fim: '2026-09-03'}]`)
+run(`S.just = [{servidor_id: 'a', tipo: 'atestado', status: 'aprovada', inicio: '2026-09-03', fim: '2026-09-03'},
+  {servidor_id: 'b', tipo: 'licenca_maternidade', status: 'aprovada', inicio: '2026-09-02', fim: '2026-09-30'}]`)
 const dia = (id, d) => run(`(() => { const s = S.d.servidores.find(x => x.id === '${id}'); return valorSemed(s, espelhoMes(s, S.bat, '2026-09', {...S.d, justificativas: S.just}, hoje()).dias[${d - 1}]) })()`)
 assert.equal(dia('a', 1), 1); assert.equal(dia('a', 2), 0); assert.equal(dia('a', 3), 'AM'); assert.equal(dia('a', 4), 1)
-assert.equal(dia('a', 5), ''); assert.equal(dia('a', 7), ''); assert.equal(dia('c', 1), 'F')
+assert.equal(dia('b', 2), 'LM'); assert.equal(dia('b', 30), 'LM'); assert.equal(dia('a', 5), ''); assert.equal(dia('a', 7), ''); assert.equal(dia('c', 1), 'F')
 
 const html = run(`htmlFolhaSemed('e', '2026-09')`)
 assert.equal((html.match(/class="semed"/g) || []).length, 3)          // 01, 06 e 09, nessa ordem
@@ -42,4 +43,8 @@ assert.ok(html.indexOf('PLANILHA 01') < html.indexOf('PLANILHA 06') && html.inde
 assert.ok(html.includes('MÊS/ANO: SETEMBRO/2026') && html.includes('PERÍODO: 01/09/2026 A 30/09/2026') && html.includes('E. M. SÃO FRANCISCO DE ASSIS'))
 // toda linha tem 4 + 30 dias + total = 35 colunas
 for (const tr of html.match(/<tr>\s*<td>\d+<\/td>[\s\S]*?<\/tr>/g)) assert.equal((tr.match(/<td/g) || []).length, 35)
+// a secretaria confere na tela a mesma folha que imprime
+run(`S.perfil = {papel: 'chefe', setor_id: 'e'}; S.mes = '2026-09'`)
+const tela = run('telaSemed()')
+assert.ok(tela.includes('semed-tela') && tela.includes('PLANILHA 09') && tela.includes('data-a="imprimir-semed"') && tela.includes('data-a="voltar-semed"'))
 console.log('folha SEMED: ok')

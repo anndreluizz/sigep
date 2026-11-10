@@ -208,6 +208,7 @@ await como(RH)
 await q(`insert into meses_fechados (mes) values ('2026-09-01')`)
 await erro('select pedir_justificativa($1, $2, $3, $4, $5)', [ana.id, 'ferias', '2026-09-20', '2026-10-05', 'Férias de setembro'], 'fechado', 'mês fechado não aceita justificativa')
 r = await pedir(paulo.id, 'ferias', '2026-11-16', '2026-11-30', 'Férias regulamentares'); ok(r.status === 'aprovada', 'RH lança férias de qualquer setor')
+r = await pedir(paulo.id, 'licenca_maternidade', '2026-12-01', '2026-12-31', 'Licença maternidade'); ok(r.status === 'aprovada', 'aceita licença maternidade (LM da folha SEMED)')
 ok((await q(`select * from historico where tabela = 'justificativas'`)).length >= 5, 'justificativas vão pro histórico')
 await como(TOTEM); ok((await q('select id from justificativas')).length === 0, 'totem não vê justificativas')
 
