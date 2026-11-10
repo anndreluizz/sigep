@@ -3,7 +3,7 @@
   "private": true,
   "description": "Banco de dados do SIGEP (Supabase)",
   "scripts": {
-    "test": "node testar.mjs && node checar-telas.mjs && node checar-totem.mjs",
+    "test": "node testar.mjs && node checar-telas.mjs && node checar-totem.mjs && node checar-folha-semed.mjs",
     "totem": "node checar-totem.mjs",
     "telas": "node checar-telas.mjs"
   },

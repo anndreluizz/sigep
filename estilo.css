@@ -65,6 +65,21 @@ tr.off td{color:var(--muted)}
 .esp-topo{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .espelho td{padding:5px 8px;vertical-align:top}
 .assinaturas{display:none}
+/* folha de frequência da SEMED: uma página A4 deitada por categoria */
+.semed{break-after:page;font:6.5pt/1.15 Arial,sans-serif;color:#000}
+.semed:last-child{break-after:auto}
+.semed table{width:100%;border-collapse:collapse;font-size:inherit}
+.semed td{border:.2mm solid #000;padding:.3mm .4mm;text-align:center;white-space:nowrap}
+.semed td.nm{white-space:normal;min-width:38mm}
+.semed td.nm,.semed td[colspan]{text-align:left}
+.semed .tit{font-weight:700;font-size:9pt}
+.semed .cat{font-weight:700;font-size:8pt;background:#e5e7eb;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.semed td.brasao{text-align:center}.semed .brasao img{height:16mm}
+.semed .cab td{font-weight:700;text-align:center}.semed .cab td[rowspan]{white-space:normal;width:10mm}
+.semed td.falta{font-weight:700}
+.semed td.leg{white-space:normal;font-size:6.5pt}
+.semed .ass{display:grid;grid-template-columns:1fr 1fr;gap:40mm;margin:14mm 20mm 0;text-align:center}
+.semed .ass div{border-top:.2mm solid #000;padding-top:1mm}
 @page retrato{size:A4 portrait;margin:10mm}
 @media print{
   @page{size:A4 landscape;margin:4mm}
