@@ -3,7 +3,8 @@
 // Serve para testar as telas sem conta no Supabase. Os dados somem ao recarregar a página.
 // ponytail: só o subconjunto do supabase-js que app.js usa (select/eq/in/gte/lt/lte/order/range/insert/update/delete/rpc).
 
-const MIGRACOES = ['20261109000000_inicial.sql', '20261110000000_justificativas.sql', '20261111000000_gestao_unidade.sql', '20261112000000_vinculos.sql', '20261113000000_varios_turnos.sql']
+const MIGRACOES = ['20261109000000_inicial.sql', '20261110000000_justificativas.sql', '20261111000000_gestao_unidade.sql', '20261112000000_vinculos.sql', '20261113000000_varios_turnos.sql',
+  '20261114000000_licencas_semed.sql', '20261115000000_batida_sem_duplicar.sql']
 
 const AUTH_SUPABASE = `
   create schema auth; create table auth.users (id uuid primary key, email text unique, senha text);
