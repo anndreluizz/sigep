@@ -15,6 +15,14 @@ assert.equal(cat('Secretário(a) escolar'), '02'); assert.equal(cat('Aux. Serv. 
 assert.equal(cat('Merendeira'), '05'); assert.equal(cat('Professor(a)', 'efetivo'), '06'); assert.equal(cat('Professor(a)', 'contratado'), '09')
 assert.equal(cat('Professor'), '09'); assert.equal(cat('Vigia'), '07'); assert.equal(cat('AVE'), '10'); assert.equal(cat('Bibliotecária'), '11')
 assert.equal(cat('Professor PACCET', 'efetivo'), '12'); assert.equal(cat('Motorista'), '13')
+// textos reais da coluna APLICAÇÃO das 12 planilhas da E.M. São Francisco de Assis (set/2026) → número da planilha
+for (const [cargo, vinculo, n] of [['APOIO PEDAGÓGICO', 'contratado', '08'], ['APOIO PEDAGÓGICO/MAT.', 'efetivo', '08'], ['APOIO PEDAGÓGICO/VESP.', 'contratado', '08'],
+  ['ASSISTENTE ADM./MANHÃ', 'contratado', '02'], ['ASSISTENTE ADM./TARDE', 'contratado', '02'], ['AUX.SERV.GER.', 'contratado', '03'], ['AUX.SERV.GER.', 'efetivo', '03'],
+  ['AUXILAR BIBLIOTECA', 'contratado', '11'], ['AUXILIAR ADMINISTRATIVO', 'contratado', '02'], ['GESTORA', 'efetivo', '04'], ['INSTRUTOR/PACCET', 'contratado', '12'],
+  ['MERENDEIRA', 'contratado', '05'], ['MERENDEIRO', 'efetivo', '05'], ['PAE', 'contratado', '10'], ['PEDAGOGO', 'contratado', '01'], ['PEGAGOGO', 'efetivo', '01'],
+  ['PROFESSOR', 'contratado', '09'], ['PROFESSOR', 'efetivo', '06'], ['PROFESSOR/AEE', 'efetivo', '06'], ['PROFESSOR/MAT.', 'contratado', '09'], ['PROFESSOR/NOT.', 'contratado', '09'],
+  ['PROFESSOR/PACCET', 'contratado', '12'], ['PROFESSOR/PACCET', 'efetivo', '12'], ['PROFESSOR/VESP.', 'contratado', '09'], ['VIGIA', 'contratado', '07'], ['VIGIA', 'efetivo', '07']])
+  assert.equal(cat(cargo, vinculo), n, cargo + ' / ' + vinculo)
 
 // setembro/2026: turno seg–sex; ter 01 presente, qua 02 falta, qui 03 atestado, 07/09 feriado
 const T = {id: 't', nome: 'Matutino', entrada: '07:00:00', saida: '11:00:00', dias_semana: [1, 2, 3, 4, 5], tolerancia_min: 10, tolerancia_saida_min: 10}

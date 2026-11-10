@@ -536,17 +536,18 @@ function formServidor() {
 /* ============================== folha de frequência da SEMED ============================== */
 // Uma folha por categoria, com a numeração das planilhas que a escola entrega à SEMED (01 a 12).
 // A categoria sai do cargo (e do vínculo, no caso do professor); quem não casar com nenhuma vai para "13 – sem categoria".
+// Os textos são os da coluna APLICAÇÃO das planilhas (ex.: "AUX.SERV.GER.", "ASSISTENTE ADM./MANHÃ", "PROFESSOR/VESP.", "PAE").
 const CATEGORIAS_SEMED = [
-  ['01', 'PEDAGOGO', (c) => /pedagog/.test(c) && !/apoio/.test(c)],
-  ['02', 'AUX. ADMINISTRATIVO', (c) => /administrativ|secretari/.test(c)],
-  ['03', 'AUX. SERV. GERAIS', (c) => /serv.*gera|\basg\b|zelador|limpeza/.test(c)],
+  ['01', 'PEDAGOGO', (c) => /pe[dg]agog/.test(c) && !/apoio/.test(c)],
+  ['02', 'AUX. ADMINISTRATIVO', (c) => /administrativ|\badm\b|secretari/.test(c)],
+  ['03', 'AUX. SERV. GERAIS', (c) => /serv.*ger|\basg\b|zelador|limpeza/.test(c)],
   ['04', 'GESTORA', (c) => /gest|diretor/.test(c)],
   ['05', 'MERENDEIRO(A)', (c) => /merend|cozinh/.test(c)],
   ['06', 'PROFESSOR EFETIVO', (c, v) => /professor|instrutor/.test(c) && !/paccet/.test(c) && v === 'efetivo'],
   ['07', 'VIGIA', (c) => /vigia|vigilan|porteir/.test(c)],
-  ['08', 'APOIO PEDAGÓGICO', (c) => /apoio/.test(c)],
+  ['08', 'APOIO PEDAGÓGICO', (c) => /apoio pedag/.test(c)],
   ['09', 'PROFESSOR CONTRATO', (c) => /professor|instrutor/.test(c) && !/paccet/.test(c)],
-  ['10', 'AVE', (c) => /\bave\b|vida escolar|cuidador/.test(c)],
+  ['10', 'AVE', (c) => /\bpae\b|\bave\b|apoio escolar|vida escolar|cuidador/.test(c)],
   ['11', 'BIBLIOTECÁRIO', (c) => /bibliotec/.test(c)],
   ['12', 'PACCET', (c) => /paccet/.test(c)],
 ]
