@@ -1,4 +1,4 @@
--- SIGEP · batida repetida (dois defeitos achados na revisão de 10/11/2026, os dois reproduzidos em testar.mjs)
+-- SIGEP · batida repetida (três defeitos da revisão de 10/11/2026, todos reproduzidos em testar.mjs)
 -- 1) Quem tem dois vínculos (mesmo CPF) e passava o crachá duas vezes na saída: a 1ª leitura fechava o vínculo
 --    da manhã e a 2ª, segundos depois, abria uma entrada no vínculo da tarde. O intervalo mínimo entre leituras
 --    olhava só o vínculo escolhido; agora olha a pessoa. De quebra, a saída volta a mostrar de qual vínculo foi.
