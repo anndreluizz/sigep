@@ -206,6 +206,8 @@ ok(r.status === 'recusada' && r.resposta === 'Traga o atestado ao RH', 'chefe re
 r = await pedir(ana.id, 'servico_externo', '2026-11-06', '2026-11-06', 'Reunião na Secretaria de Educação')
 ok(r.status === 'aprovada' && r.decidido_por === CHEFE, 'chefe lança: já nasce aprovado')
 await como(SERV)
+await erro('select pedir_justificativa($1, $2, null, null, $3, $4, $5)', [ana.id, 'batida', 'Pedindo a saída que já existe', 'saida', '2026-11-05 11:38-04'], 'Já existe uma saída registrada às 11:35', 'servidora nem consegue pedir batida que já existe')
+await erro('select confere_batida_repetida($1, $2, now())', [ana.id, 'saida'], 'permission denied', 'a conferência não é chamada direto')
 await q('delete from justificativas where id = $1', [r.id])   // RLS: não dá erro, só não apaga
 ok((await q('select id from justificativas where id = $1', [r.id])).length === 1, 'pedido decidido continua lá')
 await como(RH)

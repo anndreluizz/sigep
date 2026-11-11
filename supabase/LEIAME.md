@@ -32,7 +32,7 @@ Roda o banco num Postgres de verdade (PGlite) e tenta o uso certo e o indevido c
 - CPF, telefone e o código do crachá: o RH vê de todos; a secretaria/chefe só os da própria unidade (`dados_pessoais`). Prefeito e servidor não veem.
 - Servidor desligado, em férias ou afastado: o crachá para de funcionar em todos os totens na hora.
 - Mês fechado não aceita batida nova, alteração nem exclusão, nem justificativa.
-- Justificativa: pedido do servidor fica "em análise"; lançada pela chefia ou RH já nasce aprovada. "Esqueci de bater" aprovado vira batida de ajuste (recusado se já houver batida do mesmo tipo a menos de 30 min); abono aprovado tira falta e atraso dos dias no espelho.
+- Justificativa: pedido do servidor fica "em análise"; lançada pela chefia ou RH já nasce aprovada. "Esqueci de bater" aprovado vira batida de ajuste (o pedido é recusado se já houver batida do mesmo tipo a menos de 30 min); abono aprovado tira falta e atraso dos dias no espelho.
 - Toda mudança em servidores, batidas e perfis vai para o `historico` (quem, quando, antes e depois).
 
 As regras ficam no banco, não no app: mesmo alguém mexendo no navegador não consegue burlá-las.
