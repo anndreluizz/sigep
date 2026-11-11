@@ -182,6 +182,15 @@ await entrar('chefe@demo'); run(`S.mes = '2026-08'; S.aba = 'espelho'; S.esp = n
 ok(run('S.bat.length') === 2 && !tela().includes('Rita de Cássia'), 'chefe: só batidas e servidores da escola')
 await entrar('servidor@demo'); run(`S.mes = '2026-08'; S.aba = 'ponto'`); await run('executar(async () => {})')
 ok(run('S.bat.length') === 2 && tela().includes('Ana Paula') && tela().includes('07:02–11:31'), 'servidora: Meu ponto com as próprias batidas')
+// foto da batida no espelho: só batida de totem tem 📷, e só o RH vê o botão
+await cliente._db.query(`insert into batidas (id, servidor_id, tipo, em, origem) values ('50000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'entrada', '2026-08-04 07:00-04', 'totem')`)
+await entrar('rh@demo'); run(`S.mes = '2026-08'; S.aba = 'espelho'; S.esp = null`); await run('executar(async () => {})')
+await acao('ver-espelho', {id: '40000000-0000-4000-8000-000000000001'})
+ok(tela().includes('data-a="foto" data-id="50000000-0000-4000-8000-000000000001"') && tela().split('data-a="foto"').length === 2, 'RH: 📷 só na batida do totem (não nas de ajuste)')
+await entrar('chefe@demo'); run(`S.mes = '2026-08'; S.aba = 'espelho'; S.esp = null`); await run('executar(async () => {})')
+await acao('ver-espelho', {id: '40000000-0000-4000-8000-000000000001'}); ok(!tela().includes('data-a="foto"'), 'chefe não vê o botão de foto')
+ok(ler('estilo.css').includes('.nao-imprime{display:none!important}'), 'botão de foto não sai na impressão do espelho')
+await cliente._db.query(`delete from batidas where id = '50000000-0000-4000-8000-000000000001'`)
 for (const email of ['rh@demo', 'chefe@demo', 'prefeito@demo', 'servidor@demo']) {
   await entrar(email); run(`S.mes = '2026-08'; S.esp = null`)
   for (const aba of ['espelho', 'ponto'].filter(a => run('ABAS[S.perfil.papel]').some(x => x[0] === a))) {
