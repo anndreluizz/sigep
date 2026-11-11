@@ -74,6 +74,20 @@ perdida = false
 passar(40); await fila.enviar()
 ok(fila.pendentes() === 0 && await linhas() === antes + 1, `reenvio da mesma leitura não duplica (${await linhas() - antes} batida(s) gravada(s))`)
 
+
+// foto da batida: vai depois do registro, com internet ou pela fila, e nunca atrapalha o ponto
+const fotos = async () => (await banco._db.query('select count(*)::int n from batida_fotos')).rows[0].n
+const FOTO = 'data:image/jpeg;base64,/9j/AAAA', espera = () => new Promise(r => setTimeout(r, 100))
+await envelhecer(); antes = await linhas()
+r = await fila.bater('DEMO-0105', FOTO); await espera()
+ok(r.ok && !r.guardada && await fotos() === 1, 'com internet: batida e foto gravadas')
+await envelhecer(); fora = true; r = await fila.bater('DEMO-0102', FOTO); fora = false
+ok(r.guardada && await fotos() === 1, 'sem internet: a foto espera na fila')
+await fila.enviar(); ok(fila.pendentes() === 0 && await fotos() === 2, 'internet voltou: batida e foto chegam')
+await envelhecer(); r = await fila.bater('DEMO-0101', 'data:image/png;base64,AAAA'); await espera()
+ok(r.ok && await linhas() === antes + 3 && await fotos() === 2, 'foto recusada pelo banco não derruba a batida')
+await envelhecer(); r = await fila.bater('DEMO-0105'); ok(r.ok && await fotos() === 2, 'sem foto (câmera falhou): a batida vale')
+
 // batida guardada que o banco recusou depois: fica anotada para o totem avisar (antes sumia calada)
 const motivos = fila.recusadas().map(x => x.motivo).join(' | ')
 ok(motivos.includes('outro setor') && motivos.includes('tempo demais'), 'recusadas ficam anotadas com o motivo: ' + motivos)

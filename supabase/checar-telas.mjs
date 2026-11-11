@@ -300,7 +300,7 @@ ok(msg()?.[1] === 'Horário anterior apagado.' && !tela().includes('Horários an
 // política de privacidade: página existe, está ligada na tela de entrada e não promete o que o sistema não faz
 const pol = ler('privacidade.html')
 ok(run('telaEntrar()').includes('href="privacidade.html"') && ler('sw.js').includes("'privacidade.html'"), 'tela de entrada aponta para a política de privacidade (e ela abre sem internet)')
-ok(pol.includes('Lei 13.709/2018') && pol.includes('não é digitalizado') && pol.includes('<b>não</b> guarda foto'), 'política diz o que o sistema guarda e o que não guarda')
+ok(pol.includes('Lei 13.709/2018') && pol.includes('não é digitalizado') && pol.includes('apagada automaticamente depois de 90 dias'), 'política diz o que o sistema guarda e o que não guarda')
 ok(!/storage\.from|getUserMedia\(\{video[^}]*\}\)[^;]*toBlob/.test(ler('js/app.js') + ler('js/totem.js')), 'o sistema continua sem guardar foto nem arquivo (se mudar, atualizar privacidade.html antes)')
 
 console.log(`\n${total - falhas}/${total} verificações das telas ok`)

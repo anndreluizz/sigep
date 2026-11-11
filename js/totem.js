@@ -30,11 +30,15 @@ function criarFila(sb, armazenamento, agora = () => Date.now()) {
   const limparRecusadas = () => { try { armazenamento.setItem(CHAVE_RECUSADAS, '[]') } catch {} }
   const anotarRecusa = (item, motivo) => { try { armazenamento.setItem(CHAVE_RECUSADAS, JSON.stringify([...recusadas(), {lido_em: item.lido_em, motivo}].slice(-50))) } catch {} }
 
-  function guardar(codigo, id) {
+  // foto da batida: vai DEPOIS do registro e nunca o impede (falhou, a batida vale do mesmo jeito)
+  const anexar = (id, foto) => id && foto ? comPrazo(sb.rpc('anexar_foto', {p_id: id, p_foto: foto})).catch(() => ({})) : Promise.resolve({})
+
+  function guardar(codigo, id, foto) {
     const f = ler()
     if (f.length >= MAXIMO_NA_FILA) return false
-    f.push({codigo, lido_em: agora(), id})
-    return gravar(f)
+    f.push({codigo, lido_em: agora(), id, foto})
+    // sem espaço para a foto (localStorage é pequeno): guarda a batida sem ela
+    return gravar(f) || (delete f.at(-1).foto, gravar(f))
   }
 
   // envia a mais antiga primeiro; recusa do banco (crachá bloqueado, repetida, mês fechado) sai da fila
@@ -46,6 +50,8 @@ function criarFila(sb, armazenamento, agora = () => Date.now()) {
         if (error && semRede(error)) break
         // 23505 = "já registrado agora há pouco" (crachá passado duas vezes): não é perda, não avisa
         if (error && error.code !== '23505') anotarRecusa(item, error.message)
+        // foto: tenta uma vez; se nem ela nem a rede responderem, a batida segue sem foto
+        if (!error || error.code === '23505') await anexar(item.id, item.foto)
         const resto = ler()
         if (resto.length && resto[0].lido_em === item.lido_em && resto[0].codigo === item.codigo) resto.shift()
         gravar(resto)
@@ -54,19 +60,19 @@ function criarFila(sb, armazenamento, agora = () => Date.now()) {
   }
 
   // -> {ok, guardada, dados | erro}
-  async function bater(codigo) {
+  async function bater(codigo, foto = null) {
     // ainda há batidas antigas: esta vai para o fim da fila, senão chegaria antes delas e a
     // entrada/saída sairia trocada
     const id = novoId()
     if (ler().length) {
-      if (!guardar(codigo, id)) return {ok: false, erro: 'Memória do totem cheia. Chame o RH.'}
+      if (!guardar(codigo, id, foto)) return {ok: false, erro: 'Memória do totem cheia. Chame o RH.'}
       enviar()
       return {ok: true, guardada: true}
     }
     const {data, error} = await registrar(codigo, 0, id)
-    if (!error) return {ok: true, dados: data}
+    if (!error) { anexar(id, foto); return {ok: true, dados: data} }
     if (error.code === 'SG401' || !semRede(error)) return {ok: false, erro: error.message}   // totem desativado: não acumula batida nova
-    if (!guardar(codigo, id)) return {ok: false, erro: 'Sem internet e sem espaço para guardar. Chame o RH.'}
+    if (!guardar(codigo, id, foto)) return {ok: false, erro: 'Sem internet e sem espaço para guardar. Chame o RH.'}
     return {ok: true, guardada: true}
   }
 
@@ -121,9 +127,19 @@ function iniciarTotem(sb) {
     setTimeout(() => { r.hidden = true; ocupado = false }, ok ? 3000 : 6000)   // erro fica mais tempo: dá para ler o motivo
   }
 
+  // foto pequena do quadro atual (rosto de quem está passando o crachá); falhou, segue sem foto
+  function foto() {
+    try {
+      const c = document.createElement('canvas'), w = 320
+      c.width = w; c.height = Math.round(video.videoHeight * w / video.videoWidth)
+      c.getContext('2d').drawImage(video, 0, 0, c.width, c.height)
+      return c.toDataURL('image/jpeg', 0.6)
+    } catch { return null }
+  }
+
   async function lido(codigo) {
     ocupado = true
-    const r = await fila.bater(codigo)
+    const r = await fila.bater(codigo, foto())
     avisoFila()
     const hora = new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})
     if (!r.ok) return resposta(false, 'Não foi possível registrar', r.erro)

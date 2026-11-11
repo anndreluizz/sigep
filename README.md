@@ -6,7 +6,7 @@ Páginas web estáticas (instaláveis no celular/tablet) + banco no Supabase, co
 - `index.html` – o sistema (precisa do Supabase configurado em `js/config.js`)
 - `demo.html` – demonstração com o mesmo banco rodando no navegador, dados fictícios
 - Frequência → **Folha SEMED**: imprime, para o mês e a unidade escolhidos, uma folha por categoria (01 Pedagogo … 12 PACCET) no modelo de frequência da SEMED; cabeçalho em `FOLHA_SEMED` (`js/config.js`)
-- `totem.html` – o totem do setor: tablet com câmera frontal lê o QR do crachá; sem internet, guarda as batidas e envia depois (`totem.html?demo` para a demonstração; os crachás impressos em `demo.html` funcionam nele)
+- `totem.html` – o totem do setor: tablet com câmera frontal lê o QR do crachá e tira uma foto pequena da batida (só o RH vê; apagada em 90 dias); sem internet, guarda as batidas e envia depois (`totem.html?demo` para a demonstração; os crachás impressos em `demo.html` funcionam nele)
 - `supabase/` – migrações, testes e como colocar no ar (`supabase/LEIAME.md`)
 
 ## Testar

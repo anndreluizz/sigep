@@ -294,6 +294,22 @@ await como(CHEFE); ok((await q('select servidor_id from jornadas_anteriores')).e
 await q('delete from jornadas_anteriores'); await como(RH)
 r = await q('select servidor_id from jornadas_anteriores'); ok(r.length === 1 && r[0].servidor_id === paulo.id, 'chefe apaga o da própria unidade, não o de outra')
 
+// foto da batida: só o RH vê; o totem só anexa na batida que ele mesmo registrou; reenvio não duplica
+await como(RH)
+const bTotem = (await q('select id from batidas where totem_id = $1 limit 1', [TOTEM]))[0].id
+const FOTO = 'data:image/jpeg;base64,/9j/AAAA'
+await como(TOTEM2); await q('select anexar_foto($1, $2)', [bTotem, FOTO])
+await como(RH); ok((await q('select * from batida_fotos')).length === 0, 'totem não anexa foto em batida de outro totem')
+await como(TOTEM); await q('select anexar_foto($1, $2)', [bTotem, FOTO]); await q('select anexar_foto($1, $2)', [bTotem, FOTO])
+ok((await q('select * from batida_fotos')).length === 0, 'totem não lê fotos')
+await erro('select anexar_foto($1, $2)', [bTotem, 'data:image/png;base64,AAAA'], 'check', 'só aceita JPEG')
+for (const [quem, nome] of [[CHEFE, 'chefe'], [PREF, 'Prefeito'], [SERV, 'servidor']]) { await como(quem); ok((await q('select * from batida_fotos')).length === 0, `${nome} não vê foto`) }
+await como(RH); ok((await q('select * from batida_fotos')).length === 1, 'RH vê a foto (uma só, reenvio não duplica)')
+await db.exec('reset role'); await q(`update batida_fotos set criada_em = now() - interval '91 days'`)
+await como(TOTEM); await q('select anexar_foto($1, $2)', [bTotem, FOTO])
+await como(RH); ok((await q("select * from batida_fotos where criada_em > now() - interval '1 day'")).length === 1, 'foto com mais de 90 dias é apagada no envio seguinte')
+await como(null); await erro('select anexar_foto($1, $2)', [bTotem, FOTO], 'permission denied', 'anônimo não anexa')
+
 // desativar acesso
 await como(RH); await q('update perfis set ativo = false where id = $1', [TOTEM])
 await como(TOTEM); await erro('select registrar_batida($1)', [cMarta], 'não está autorizado', 'totem desativado pelo RH para na hora')
