@@ -272,6 +272,28 @@ await como(RH); ok((await um('select * from decidir_justificativa($1, true)', [p
 await q(`delete from meses_enviados where setor_id = $1 and mes = '2026-08-01'`, [escola.id])
 await como(CHEFE); ok((await pedir(ana.id, 'abono', '2026-08-12', '2026-08-12', 'Depois que o RH devolveu')).status === 'aprovada', 'RH devolveu: a unidade volta a lançar')
 
+// ---------- vigência do horário: trocar o turno guarda o anterior, com a data até quando valeu ----------
+await como(RH)
+const vera = await um(`insert into servidores (matricula, nome, setor_id, turno_id) values ('0900', 'Vera Lúcia Prado', $1, $2) returning id`, [escola.id, mat.id])
+const semH = await um(`insert into servidores (matricula, nome, setor_id) values ('0901', 'Sem Horário Ainda', $1) returning id`, [escola.id])
+const jor = sid => q(`select turno_id, (ate = dia_local(now()) - 1) ontem from jornadas_anteriores where servidor_id = $1`, [sid])
+await q(`update servidores set cargo = 'Merendeira' where id = $1`, [vera.id]); ok((await jor(vera.id)).length === 0, 'mudar outro campo não guarda horário')
+await q(`update servidores set turno_id = $1 where id = $2`, [vesp.id, vera.id])
+r = await jor(vera.id); ok(r.length === 1 && r[0].turno_id === mat.id && r[0].ontem, 'trocou o turno: o anterior fica guardado, valendo até ontem')
+await q(`update servidores set turno_id = null, escala_id = $1, escala_inicio = '2026-11-01' where id = $2`, [vigia.id, vera.id])
+r = await jor(vera.id); ok(r.length === 1 && r[0].turno_id === mat.id, '2ª troca no mesmo dia: continua valendo o que estava em vigor até ontem')
+await q(`update servidores set turno_id = $1 where id = $2`, [mat.id, semH.id]); ok((await jor(semH.id)).length === 0, 'primeira definição de horário não guarda nada (vale desde o começo)')
+await q(`update servidores set situacao = 'ativo', desligado_em = null where id = $1`, [paulo.id])
+await q(`update servidores set turno_id = $1 where id = $2`, [mat.id, paulo.id]); await q(`update servidores set turno_id = $1 where id = $2`, [vesp.id, paulo.id])
+await erro(`insert into jornadas_anteriores (servidor_id, ate) values ($1, '2026-01-01')`, [vera.id], 'permission denied', 'ninguém grava horário anterior na mão')
+await como(SERV); ok((await q('select * from jornadas_anteriores')).length === 0, 'servidora não vê horário anterior dos colegas')
+await como(TOTEM); ok((await q('select * from jornadas_anteriores')).length === 0, 'totem não vê horários anteriores')
+await como(PREF); ok((await q('select * from jornadas_anteriores')).length === 2, 'Prefeito vê os horários anteriores')
+await q('delete from jornadas_anteriores'); ok((await q('select * from jornadas_anteriores')).length === 2, 'Prefeito não apaga')
+await como(CHEFE); ok((await q('select servidor_id from jornadas_anteriores')).every(x => x.servidor_id === vera.id), 'chefe vê só os da própria unidade')
+await q('delete from jornadas_anteriores'); await como(RH)
+r = await q('select servidor_id from jornadas_anteriores'); ok(r.length === 1 && r[0].servidor_id === paulo.id, 'chefe apaga o da própria unidade, não o de outra')
+
 // desativar acesso
 await como(RH); await q('update perfis set ativo = false where id = $1', [TOTEM])
 await como(TOTEM); await erro('select registrar_batida($1)', [cMarta], 'não está autorizado', 'totem desativado pelo RH para na hora')
