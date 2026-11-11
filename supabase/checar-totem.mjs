@@ -47,6 +47,9 @@ const seg = (new Date(de('0102')[1].em) - new Date(de('0102')[0].em)) / 1000
 ok(Math.abs(seg - 4230) <= 2, `hora vem da idade medida no tablet (${seg}s entre entrada e saída, esperado 4230)`)
 ok(de('0102')[0].motivo?.includes('sem internet') && !de('0105')[0].motivo, 'só a batida guardada fica marcada no motivo')
 
+// o relógio do banco é o de verdade (o teste roda em 1 s): empurra as batidas já gravadas 1 h para trás,
+// senão a próxima leitura da mesma pessoa cairia no intervalo mínimo de 8 s e seria recusada como repetida
+const envelhecer = () => banco._db.query(`update batidas set em = em - interval '1 hour'`)
 const linhas = async () => (await banco._db.query('select count(*)::int n from batidas')).rows[0].n
 // totem desativado com fila: as batidas guardadas não se perdem (horários de 2 dias atrás: longe das de agora)
 let antes = await linhas()
@@ -58,13 +61,13 @@ await banco._db.query(`update perfis set ativo = true where papel = 'totem'`)
 passar(3600); await fila.enviar(); ok(fila.pendentes() === 0 && await linhas() === antes + 2, 'reativado: envia as duas guardadas')
 
 // batida guardada há mais de 4 dias: o banco recusa e ela sai da fila (não trava as outras)
-antes = await linhas()
+await envelhecer(); antes = await linhas()
 fora = true; await fila.bater('DEMO-0101'); passar(5 * 24 * 3600); fora = false
 await fila.bater('DEMO-0105')   // internet voltou: vai para o fim da fila e o envio começa
 await fila.enviar(); ok(fila.pendentes() === 0 && await linhas() === antes + 1, 'velha demais é descartada e a seguinte é enviada')
 
 // resposta perdida (internet lenta): o banco gravou mas o totem não soube; o reenvio não pode duplicar
-antes = await linhas()
+await envelhecer(); antes = await linhas()
 passar(3600); perdida = true
 r = await fila.bater('DEMO-0105'); ok(r.ok && r.guardada, 'resposta perdida: o totem guarda para reenviar')
 perdida = false
