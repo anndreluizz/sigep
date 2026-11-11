@@ -6,6 +6,7 @@
 
 /* ============================== fila sem internet ============================== */
 const CHAVE_FILA = 'sigep-fila-totem'
+const CHAVE_RECUSADAS = 'sigep-recusadas-totem'
 const MAXIMO_NA_FILA = 2000
 const TEMPO_LIMITE_MS = 8000
 
@@ -18,12 +19,21 @@ function criarFila(sb, armazenamento, agora = () => Date.now()) {
   // SG401 = totem desativado e PGRST3xx = login vencido: as batidas guardadas não podem se perder
   const semRede = e => !e.code || e.code === 'SG401' || /^PGRST3/.test(e.code)
   const comPrazo = p => Promise.race([p, new Promise(r => setTimeout(() => r({error: {message: 'tempo esgotado'}}), TEMPO_LIMITE_MS))])
-  const registrar = (codigo, idade = 0) => comPrazo(sb.rpc('registrar_batida', {p_codigo: codigo, p_idade_segundos: idade}))
+  // id: identificador da LEITURA, gerado aqui. Se a resposta se perder e a leitura for reenviada,
+  // o banco reconhece pelo id e não grava a batida duas vezes.
+  const registrar = (codigo, idade = 0, id = null) => comPrazo(sb.rpc('registrar_batida', {p_codigo: codigo, p_idade_segundos: idade, p_id: id}))
+  const novoId = () => globalThis.crypto?.randomUUID?.() ?? null
 
-  function guardar(codigo) {
+  // batida guardada que o banco recusou depois (crachá bloqueado, mês fechado...): quem bateu viu
+  // "guardada" e foi embora, então o totem fica avisando até alguém dispensar e chamar o RH
+  const recusadas = () => { try { return JSON.parse(armazenamento.getItem(CHAVE_RECUSADAS)) || [] } catch { return [] } }
+  const limparRecusadas = () => { try { armazenamento.setItem(CHAVE_RECUSADAS, '[]') } catch {} }
+  const anotarRecusa = (item, motivo) => { try { armazenamento.setItem(CHAVE_RECUSADAS, JSON.stringify([...recusadas(), {lido_em: item.lido_em, motivo}].slice(-50))) } catch {} }
+
+  function guardar(codigo, id) {
     const f = ler()
     if (f.length >= MAXIMO_NA_FILA) return false
-    f.push({codigo, lido_em: agora()})
+    f.push({codigo, lido_em: agora(), id})
     return gravar(f)
   }
 
@@ -32,8 +42,10 @@ function criarFila(sb, armazenamento, agora = () => Date.now()) {
     return enviando ??= (async () => {
       for (let f = ler(); f.length; f = ler()) {
         const item = f[0], idade = Math.max(0, Math.round((agora() - item.lido_em) / 1000))
-        const {error} = await registrar(item.codigo, idade)
+        const {error} = await registrar(item.codigo, idade, item.id ?? null)
         if (error && semRede(error)) break
+        // 23505 = "já registrado agora há pouco" (crachá passado duas vezes): não é perda, não avisa
+        if (error && error.code !== '23505') anotarRecusa(item, error.message)
         const resto = ler()
         if (resto.length && resto[0].lido_em === item.lido_em && resto[0].codigo === item.codigo) resto.shift()
         gravar(resto)
@@ -45,19 +57,20 @@ function criarFila(sb, armazenamento, agora = () => Date.now()) {
   async function bater(codigo) {
     // ainda há batidas antigas: esta vai para o fim da fila, senão chegaria antes delas e a
     // entrada/saída sairia trocada
+    const id = novoId()
     if (ler().length) {
-      if (!guardar(codigo)) return {ok: false, erro: 'Memória do totem cheia. Chame o RH.'}
+      if (!guardar(codigo, id)) return {ok: false, erro: 'Memória do totem cheia. Chame o RH.'}
       enviar()
       return {ok: true, guardada: true}
     }
-    const {data, error} = await registrar(codigo)
+    const {data, error} = await registrar(codigo, 0, id)
     if (!error) return {ok: true, dados: data}
     if (error.code === 'SG401' || !semRede(error)) return {ok: false, erro: error.message}   // totem desativado: não acumula batida nova
-    if (!guardar(codigo)) return {ok: false, erro: 'Sem internet e sem espaço para guardar. Chame o RH.'}
+    if (!guardar(codigo, id)) return {ok: false, erro: 'Sem internet e sem espaço para guardar. Chame o RH.'}
     return {ok: true, guardada: true}
   }
 
-  return {bater, enviar, pendentes: () => ler().length}
+  return {bater, enviar, pendentes: () => ler().length, recusadas, limparRecusadas}
 }
 
 /* ============================== tela ============================== */
@@ -83,7 +96,11 @@ function iniciarTotem(sb) {
     const n = fila.pendentes()
     $('#fila').hidden = !n
     $('#fila').textContent = `⟳ ${n} batida${n > 1 ? 's' : ''} guardada${n > 1 ? 's' : ''}, enviando quando a internet voltar`
+    const rec = fila.recusadas()
+    $('#recusadas').hidden = !rec.length
+    if (rec.length) $('#recusadas').textContent = `⚠ ${rec.length} batida${rec.length > 1 ? 's' : ''} guardada${rec.length > 1 ? 's' : ''} sem internet não ${rec.length > 1 ? 'foram aceitas' : 'foi aceita'} (${rec.at(-1).motivo}) Avise o RH. Toque aqui para dispensar.`
   }
+  $('#recusadas').addEventListener('click', () => { if (confirm('Dispensar o aviso? Avise o RH antes: essas batidas não foram registradas.')) { fila.limparRecusadas(); avisoFila() } })
   const enviar = () => fila.enviar().finally(avisoFila)
   setInterval(enviar, 30000); addEventListener('online', enviar)
 
