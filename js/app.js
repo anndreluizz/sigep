@@ -197,6 +197,7 @@ function telaEntrar() {
       <div class="acoes span2"><button class="btn">Entrar</button><button class="btn ghost" name="criar" value="1">Criar conta</button></div>
     </form>
     <p class="sub">Primeiro acesso? Crie a conta com seu e-mail e uma senha de pelo menos 8 caracteres e depois informe o código de convite que o RH te passou.</p>
+    <p class="sub"><a href="privacidade.html">Como o SIGEP usa os seus dados (LGPD)</a></p>
   </div></div>`
 }
 
