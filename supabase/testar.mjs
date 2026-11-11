@@ -251,6 +251,27 @@ await como(TOTEM)
 const seq = await Promise.all([]).then(async () => [await bater(cNoe, idade('06:58')), await bater(cNoe, idade('11:31')), await bater(cNoe, idade('12:57')), await bater(cNoe, idade('17:03'))])
 ok(seq.map(x => x.tipo).join() === 'entrada,saida,entrada,saida' && seq.every(x => x.servidor_id === noe.id && x.vinculo == null), 'um contrato, dois turnos: as 4 batidas no mesmo cadastro')
 
+// ---------- enviar o mês ao RH: depois do envio a unidade não mexe mais no ponto daquele mês ----------
+await como(SERV); const pAgo = await pedir(ana.id, 'abono', '2026-08-10', '2026-08-10', 'Pedido de agosto, antes do envio')
+await como(CHEFE)
+await erro(`insert into meses_enviados (setor_id, mes) values ($1, date_trunc('month', now())::date)`, [escola.id], 'row-level security', 'mês em andamento não se envia')
+await erro(`insert into meses_enviados (setor_id, mes) values ($1, '2026-08-01')`, [obras.id], 'row-level security', 'chefe não envia o mês de outra unidade')
+await q(`insert into meses_enviados (setor_id, mes) values ($1, '2026-08-01')`, [escola.id])
+await erro(`insert into meses_enviados (setor_id, mes) values ($1, '2026-08-01')`, [escola.id], 'duplicate', 'não envia o mesmo mês duas vezes')
+await erro('select decidir_justificativa($1, true)', [pAgo.id], 'enviado ao RH', 'mês enviado: chefe não aprova mais')
+await erro('select decidir_justificativa($1, false)', [pAgo.id], 'enviado ao RH', 'mês enviado: chefe também não recusa')
+await erro('select pedir_justificativa($1, $2, $3, $4, $5)', [ana.id, 'abono', '2026-08-12', '2026-08-12', 'Chefe lançando depois do envio'], 'enviado ao RH', 'mês enviado: chefe não lança mais')
+ok((await pedir(ana.id, 'abono', '2026-07-10', '2026-07-10', 'Julho não foi enviado')).status === 'aprovada', 'outro mês da mesma unidade continua aberto')
+await q('delete from meses_enviados')   // RLS: não dá erro, só não apaga
+ok((await q('select * from meses_enviados')).length === 1, 'chefe não devolve o próprio envio')
+await como(SERV); ok((await pedir(ana.id, 'abono', '2026-08-13', '2026-08-13', 'Servidora pede em mês enviado')).status === 'pendente', 'servidora ainda pede em mês enviado (quem responde é o RH)')
+ok((await q('select * from meses_enviados')).length === 0, 'servidora não vê os envios')
+await como(PREF); ok((await q('select * from meses_enviados')).length === 1, 'Prefeito vê os envios')
+await erro(`insert into meses_enviados (setor_id, mes) values ($1, '2026-07-01')`, [escola.id], 'row-level security', 'Prefeito não envia')
+await como(RH); ok((await um('select * from decidir_justificativa($1, true)', [pAgo.id])).status === 'aprovada', 'RH corrige o mês enviado')
+await q(`delete from meses_enviados where setor_id = $1 and mes = '2026-08-01'`, [escola.id])
+await como(CHEFE); ok((await pedir(ana.id, 'abono', '2026-08-12', '2026-08-12', 'Depois que o RH devolveu')).status === 'aprovada', 'RH devolveu: a unidade volta a lançar')
+
 // desativar acesso
 await como(RH); await q('update perfis set ativo = false where id = $1', [TOTEM])
 await como(TOTEM); await erro('select registrar_batida($1)', [cMarta], 'não está autorizado', 'totem desativado pelo RH para na hora')

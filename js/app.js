@@ -47,8 +47,9 @@ async function carregar() {
   S.bat = bat
   if (p !== 'totem') {   // justificativas que tocam o mês (para o espelho) e os pedidos recentes (aba Pedidos / Meu ponto)
     const [ini, fim] = limitesMes(mesAtual())
-    ;[S.just, S.pedidos] = await Promise.all([q(sb.from('justificativas').select('*').gte('fim', ini).lte('inicio', fim)),
-      q(sb.from('justificativas').select('*').order('pedido_em', {ascending: false}).range(0, 199))])
+    ;[S.just, S.pedidos, S.env] = await Promise.all([q(sb.from('justificativas').select('*').gte('fim', ini).lte('inicio', fim)),
+      q(sb.from('justificativas').select('*').order('pedido_em', {ascending: false}).range(0, 199)),
+      q(sb.from('meses_enviados').select('*').eq('mes', ini))])   // unidades que já enviaram este mês ao RH
   }
 }
 // batidas do mês (com um dia de folga em cada ponta, por causa do plantão que passa da meia-noite).
@@ -307,7 +308,7 @@ const TELAS = {
         <input type="month" data-mes value="${mes}" aria-label="Mês">
         ${S.perfil.papel === 'chefe' ? '' : `<select data-filtro="setor">${opcoes(S.d.setores.map(x => [x.id, x.nome]), f.setor, 'Todos os setores')}</select>`}
         <button class="btn ghost" data-a="ver-semed" title="Uma folha por categoria (01 Pedagogo … 12 PACCET), no modelo da SEMED">Folha SEMED</button>
-      </div><div class="tabela"><table><thead><tr><th>Servidor</th><th>Setor</th><th>Previsto</th><th>Trabalhado</th><th>Saldo</th><th>Faltas</th><th>Atrasos</th><th>Pendências</th><th></th></tr></thead><tbody>
+      </div>${envioMes(mes)}<div class="tabela"><table><thead><tr><th>Servidor</th><th>Setor</th><th>Previsto</th><th>Trabalhado</th><th>Saldo</th><th>Faltas</th><th>Atrasos</th><th>Pendências</th><th></th></tr></thead><tbody>
       ${linhas.map(({s, tot, turno}) => `<tr><td>${esc(s.nome)}<div class="sub">mat. ${esc(s.matricula)}${turno ? '' : ' · sem horário definido'}</div></td><td>${esc(setorNome(s.setor_id))}</td>
         <td>${duracao(tot.previsto)}</td><td>${duracao(tot.trabalhado)}</td><td><b style="color:var(${tot.saldo < 0 ? '--red' : '--goldink'})">${duracao(tot.saldo)}</b></td>
         <td>${n(tot.faltas, 'red')}</td><td>${n(tot.atrasos, 'amber')}</td><td>${n(tot.pendencias, 'red')}</td>
@@ -655,6 +656,25 @@ async function importarPlanilha() {
   return S.imp.ok.length
 }
 
+// Envio do mês ao RH (até o dia 5): a secretaria envia o mês que já terminou; depois só o RH corrige, e pode devolver.
+const nomeDoMes = mes => new Date(Date.UTC(+mes.slice(0, 4), +mes.slice(5, 7) - 1, 15)).toLocaleDateString('pt-BR', {month: 'long', year: 'numeric', timeZone: 'UTC'})
+function envioMes(mes) {
+  const papel = S.perfil.papel, env = S.env || [], quando = e => dataBR(diaLocal(e.enviado_em))
+  if (mes >= hoje().slice(0, 7)) return ''   // mês em andamento não se envia
+  if (papel === 'chefe') {
+    const e = env.find(x => x.setor_id === S.perfil.setor_id)
+    return e ? `<div class="msg ok">Frequência de <b>${nomeDoMes(mes)}</b> enviada ao RH em ${quando(e)}. A partir daqui só o RH corrige este mês.</div>`
+      : `<div class="msg info">A frequência de <b>${nomeDoMes(mes)}</b> ainda não foi enviada ao RH. Confira faltas e pendências abaixo e envie.
+          <button class="btn sm" data-a="enviar-mes" style="margin-left:8px">Enviar ao RH</button></div>`
+  }
+  const unidades = S.d.setores.filter(st => S.d.servidores.some(x => x.setor_id === st.id) || env.some(e => e.setor_id === st.id))
+  const falta = unidades.filter(st => !env.some(e => e.setor_id === st.id)).length
+  return `<div class="card" style="margin:0 0 14px"><h3>Envio de ${nomeDoMes(mes)} ao RH <small>${unidades.length - falta} de ${unidades.length}</small></h3>
+    ${unidades.map(st => { const e = env.find(x => x.setor_id === st.id)
+      return `<div class="row"><div><b>${esc(st.nome)}</b></div>${e ? `<div class="acoes"><span class="pill green">enviada em ${quando(e)}</span>${papel === 'rh' ? `<button class="btn ghost sm" data-a="devolver-mes" data-id="${st.id}">Devolver</button>` : ''}</div>`
+        : '<span class="pill amber">ainda não enviou</span>'}</div>` }).join('')}</div>`
+}
+
 /* ============================== ações ============================== */
 const dadosForm = f => Object.fromEntries([...new FormData(f)].map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v]))
 const vazioNull = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v === '' ? null : v]))
@@ -754,6 +774,15 @@ const ACOES = {
   async desistir(el) {
     if (!confirm('Desistir deste pedido?')) return false
     await q(sb.from('justificativas').delete().eq('id', el.dataset.id)); return ['ok', 'Pedido retirado.']
+  },
+  async 'enviar-mes'() {
+    const mes = mesAtual()
+    if (!confirm(`Enviar a frequência de ${nomeDoMes(mes)} ao RH? Depois disso só o RH corrige este mês.`)) return false
+    await q(sb.from('meses_enviados').insert({setor_id: S.perfil.setor_id, mes: mes + '-01'})); return ['ok', `Frequência de ${nomeDoMes(mes)} enviada ao RH.`]
+  },
+  async 'devolver-mes'(el) {
+    if (!confirm(`Devolver ${nomeDoMes(mesAtual())} para ${setorNome(el.dataset.id)}? A unidade volta a poder corrigir e precisa enviar de novo.`)) return false
+    await q(sb.from('meses_enviados').delete().eq('setor_id', el.dataset.id).eq('mes', mesAtual() + '-01')); return ['ok', 'Mês devolvido à unidade.']
   },
   'ver-espelho'(el) { S.esp = el.dataset.id; scrollTo(0, 0); return false },
   'voltar-espelho'() { S.esp = null; return false },
