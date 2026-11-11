@@ -34,15 +34,17 @@ const COLS_SERV = 'id, matricula, nome, cargo, setor_id, turno_id, turnos_extra,
 async function carregar() {
   if (S.aba === 'painel') S.mes = null   // o painel é sempre o mês de hoje
   const p = S.perfil.papel, rh = p === 'rh', gestor = rh || p === 'chefe'
-  const [setores, turnos, escalas, feriados, servidores, pessoais, perfis, convites, bat] = await Promise.all([
+  const [setores, turnos, escalas, feriados, servidores, pessoais, perfis, convites, bat, jornadas] = await Promise.all([
     q(sb.from('setores').select('*').order('nome')), q(sb.from('turnos').select('*').order('nome')), q(sb.from('escalas').select('*').order('nome')),
     q(sb.from('feriados').select('*').order('data')),
     p === 'totem' ? [] : q(sb.from('servidores').select(COLS_SERV).order('nome')),
     gestor ? q(sb.rpc('dados_pessoais')) : [], rh ? q(sb.from('perfis').select('*').order('nome')) : [],
     gestor ? q(sb.from('convites').select('*').order('criado_em', {ascending: false})) : [],
-    ['espelho', 'ponto', 'painel'].includes(S.aba) ? batidasDoMes(mesAtual()) : []])
+    ['espelho', 'ponto', 'painel'].includes(S.aba) ? batidasDoMes(mesAtual()) : [],
+    p === 'totem' ? [] : q(sb.from('jornadas_anteriores').select('*').order('ate'))])
   const pes = Object.fromEntries(pessoais.map(x => [x.id, x]))
-  servidores.forEach(s => Object.assign(s, pes[s.id] || {}))
+  // horários anteriores de cada servidor: a folha de um dia usa o horário que valia naquele dia (ver espelhoMes)
+  servidores.forEach(s => Object.assign(s, pes[s.id] || {}, {jornadas: jornadas.filter(j => j.servidor_id === s.id)}))
   S.d = {setores, turnos, escalas, feriados, servidores, perfis, convites}
   S.bat = bat
   if (p !== 'totem') {   // justificativas que tocam o mês (para o espelho) e os pedidos recentes (aba Pedidos / Meu ponto)
@@ -97,10 +99,13 @@ const TIPOS_J = {atestado: 'Atestado médico', ferias: 'Férias', licenca: 'Lice
   abono: 'Outro motivo (abono)', batida: 'Esqueci de bater o ponto'}
 function espelhoMes(s, batidas, mes, {turnos, escalas, feriados, justificativas = []}, hojeStr, agoraAbs = Math.round(Date.now() / 6e4)) {
   const just = justificativas.filter(j => j.servidor_id === s.id && j.status !== 'recusada')
-  const escala = s.escala_id && escalas.find(e => e.id === s.escala_id)
   // turnos do contrato: escala = o turno dela; senão o principal + os extras (ex.: Matutino + Noturno)
-  const meus = (escala ? [escala.turno_id] : [s.turno_id, ...(s.turnos_extra || [])]).map(id => turnos.find(t => t.id === id)).filter(Boolean)
-  const turno = meus[0], varios = meus.length > 1
+  const contrato = j => { const escala = j.escala_id && escalas.find(e => e.id === j.escala_id)
+    return {escala, inicio: j.escala_inicio, meus: (escala ? [escala.turno_id] : [j.turno_id, ...(j.turnos_extra || [])]).map(id => turnos.find(t => t.id === id)).filter(Boolean)} }
+  // vigência: s.jornadas são os horários anteriores, cada um valeu "até" uma data; depois da última vale o atual
+  const atual = contrato(s), antigos = (s.jornadas || []).map(j => ({ate: j.ate, ...contrato(j)})).sort((a, b) => a.ate < b.ate ? -1 : 1)
+  const noDia = dia => antigos.find(j => dia <= j.ate) || atual
+  const meus = atual.meus, turno = meus[0]
   const feriado = Object.fromEntries(feriados.map(f => [f.data, f.nome]))
   const [ini, fim] = limitesMes(mes)
   const faixa = t => { const ent = toMin(t.entrada); let sai = toMin(t.saida); if (sai <= ent) sai += 1440
@@ -108,9 +113,10 @@ function espelhoMes(s, batidas, mes, {turnos, escalas, feriados, justificativas 
   // o ponto só conta a partir do dia em que a pessoa entrou no SIGEP: antes disso não há batida para conferir
   const desde = s.criado_em && new Date(s.criado_em).toLocaleDateString('sv-SE', {timeZone: 'America/Manaus'})
   const periodos = dia => {   // períodos de trabalho previstos no dia
-    if (!turno || (s.admissao && dia < s.admissao) || (desde && dia < desde) || (s.desligado_em && dia > s.desligado_em)) return []
-    if (escala) { const n = Math.round((Date.parse(dia) - Date.parse(s.escala_inicio)) / 864e5)
-      return n >= 0 && n % (escala.dias_trabalho + escala.dias_descanso) < escala.dias_trabalho ? [faixa(turno)] : [] }
+    const {escala, inicio, meus} = noDia(dia)
+    if (!meus[0] || (s.admissao && dia < s.admissao) || (desde && dia < desde) || (s.desligado_em && dia > s.desligado_em)) return []
+    if (escala) { const n = Math.round((Date.parse(dia) - Date.parse(inicio)) / 864e5)
+      return n >= 0 && n % (escala.dias_trabalho + escala.dias_descanso) < escala.dias_trabalho ? [faixa(meus[0])] : [] }
     if (feriado[dia]) return []
     const dow = new Date(dia + 'T12:00:00Z').getUTCDay()
     return meus.filter(t => t.dias_semana.includes(dow)).map(faixa).sort((a, b) => a.ent - b.ent)
@@ -142,7 +148,7 @@ function espelhoMes(s, batidas, mes, {turnos, escalas, feriados, justificativas 
       if (!p.ent) oc.push(['Saída sem entrada', 'amber'])
       else if (!p.sai) oc.push(agoraAbs - p.ent < LIMITE_PLANTAO_MIN && dia >= addDia(hojeStr, -1) ? ['Em andamento', 'blue'] : ['Sem saída', 'red'])
     }
-    const nm = pe => varios ? ` (${pe.nome})` : ''
+    const varios = noDia(dia).meus.length > 1, nm = pe => varios ? ` (${pe.nome})` : ''
     if (prev && fechado && !ps.length) oc.push(['Falta', 'red'])
     for (const pe of pers) {
       if (!pe.pares.length) { if (fechado && ps.length) oc.push([`Faltou no ${pe.nome}`, 'red']); continue }
@@ -387,7 +393,8 @@ const TELAS = {
         <fieldset class="span2 acoes" style="border:0;padding:0;margin:0"><legend class="sub">Dias de trabalho</legend>
           ${DIAS.map((n, i) => `<label style="flex-direction:row;align-items:center"><input type="checkbox" name="dia" value="${i}" style="width:auto" ${dias.includes(i) ? 'checked' : ''}>${n}</label>`).join('')}</fieldset>
         <div class="acoes span2"><button class="btn">${t.id ? 'Salvar' : 'Adicionar turno'}</button>${t.id ? '<button type="button" class="btn ghost" data-a="cancelar">Cancelar</button>' : ''}</div>
-        <p class="sub span2">Saída igual ou antes da entrada (ex.: 07:00–07:00) é plantão que passa da meia-noite.</p>
+        <p class="sub span2">Saída igual ou antes da entrada (ex.: 07:00–07:00) é plantão que passa da meia-noite.${t.id ? ` Mudar as horas de um turno recalcula também os meses passados de quem o usa:
+          se o horário mudou de verdade, crie um turno novo e troque no cadastro dos servidores.` : ''}</p>
       </form></div>
       <div class="card"><h3>Escalas</h3>
         ${S.d.escalas.map(e => `<div class="row"><div><b>${esc(e.nome)}</b><div class="sub">${e.dias_trabalho} dia(s) de trabalho, ${e.dias_descanso} de folga · turno ${esc(S.d.turnos.find(t => t.id === e.turno_id)?.nome)}</div></div></div>`).join('') || '<div class="vazio">Nenhuma escala.</div>'}
@@ -531,6 +538,10 @@ function formServidor() {
       <label>CPF<input name="cpf" inputmode="numeric" value="${esc(s.cpf)}" placeholder="só números"></label>
       <label>Telefone<input name="telefone" type="tel" value="${esc(s.telefone)}"></label>
       ${s.situacao !== 'desligado' ? `<label>Situação<select name="situacao">${opcoes([['ativo', 'Ativo'], ['ferias', 'Férias'], ['afastado', 'Afastado']], s.situacao)}</select></label>` : ''}
+      ${s.jornadas?.length ? `<div class="span2"><b>Horários anteriores</b> <span class="sub">os dias até cada data são calculados com o horário que valia na época</span>
+        ${s.jornadas.map(j => `<div class="row"><div>${esc(jornada(j))} <span class="sub">até ${dataBR(j.ate)}</span></div>
+          <button type="button" class="btn ghost sm" data-a="apagar-jornada" data-id="${s.id}" data-ate="${j.ate}">Apagar</button></div>`).join('')}
+        <p class="sub">Apague só se o horário antigo foi cadastrado errado: os dias até essa data passam a ser calculados com o horário seguinte.</p></div>` : ''}
       <div class="acoes span2"><button class="btn">Salvar</button><button type="button" class="btn ghost" data-a="cancelar">Cancelar</button>
         ${novo ? '' : s.situacao === 'desligado'
           ? `<button type="button" class="btn ghost" data-a="reativar" data-id="${s.id}">Reativar</button>`
@@ -783,6 +794,10 @@ const ACOES = {
   async 'devolver-mes'(el) {
     if (!confirm(`Devolver ${nomeDoMes(mesAtual())} para ${setorNome(el.dataset.id)}? A unidade volta a poder corrigir e precisa enviar de novo.`)) return false
     await q(sb.from('meses_enviados').delete().eq('setor_id', el.dataset.id).eq('mes', mesAtual() + '-01')); return ['ok', 'Mês devolvido à unidade.']
+  },
+  async 'apagar-jornada'(el) {
+    if (!confirm(`Apagar o horário anterior (até ${dataBR(el.dataset.ate)})? Os dias até essa data passam a ser calculados com o horário seguinte.`)) return false
+    await q(sb.from('jornadas_anteriores').delete().eq('servidor_id', el.dataset.id).eq('ate', el.dataset.ate)); return ['ok', 'Horário anterior apagado.']
   },
   'ver-espelho'(el) { S.esp = el.dataset.id; scrollTo(0, 0); return false },
   'voltar-espelho'() { S.esp = null; return false },

@@ -126,6 +126,11 @@ const outubro = esp({id: 'A', turno_id: 'T1'}, [
   bt('A', 'entrada', '2026-10-05T07:00'),                                          // esqueceu a saída
   bt('A', 'entrada', '2026-10-06T07:00'), bt('A', 'saida', '2026-10-06T10:00'),   // saiu antes
   bt('OUTRO', 'entrada', '2026-10-07T07:00')], '2026-10', cad, '2026-11-09')
+// vigência: até 15/10 valia o Matutino (10 dias úteis de 4h30, sem o feriado); de 16 a 31/10 o plantão de todo dia (16 x 24 h)
+const cadV = {...cad, turnos: [mat, {...plant, id: 'T3'}]}
+ok(esp({id: 'V', turno_id: 'T3', jornadas: [{ate: '2026-10-15', turno_id: 'T1'}]}, [], '2026-10', cadV, '2026-11-09').tot.previsto === 10 * 270 + 16 * 1440, 'horário anterior vale até a data dele; depois vale o atual')
+ok(esp({id: 'V', turno_id: 'T3'}, [], '2026-10', cadV, '2026-11-09').tot.previsto === 30 * 1440, 'sem horário anterior: o atual vale o mês todo')
+ok(esp({id: 'V', turno_id: 'T3', jornadas: [{ate: '2026-10-20', turno_id: 'T3'}, {ate: '2026-10-15', turno_id: 'T1'}]}, [], '2026-10', cadV, '2026-11-09').tot.previsto === 10 * 270 + 16 * 1440, 'dois horários anteriores: cada dia usa o primeiro que ainda valia')
 const dia = d => outubro.dias.find(x => x.dia === d), ocs = d => dia(d).oc.map(o => o[0]).join(',')
 ok(outubro.dias.length === 31 && outubro.tot.previsto === 21 * 270, 'outubro: 21 dias úteis de 4h30 (feriado de 12/10 não conta): ' + outubro.tot.previsto)
 ok(outubro.tot.trabalhado === 265 + 240 + 120 + 180 && outubro.tot.saldo === outubro.tot.trabalhado - outubro.tot.previsto, 'trabalhado e saldo: ' + outubro.tot.trabalhado)
@@ -282,6 +287,15 @@ await entrar('rh@demo'); run(`S.mes = '2026-08'; S.aba = 'espelho'; S.msg = null
 ok(tela().includes('Envio de agosto de 2026 ao RH <small>1 de') && tela().includes('data-a="devolver-mes"') && tela().includes('ainda não enviou'), 'RH vê as unidades que enviaram e as que faltam')
 await acao('devolver-mes', {id: ESCOLA})
 ok(msg()?.[1] === 'Mês devolvido à unidade.' && !tela().includes('data-a="devolver-mes"'), 'RH devolve o mês à unidade')
+
+// vigência do horário: trocar o turno guarda o anterior, que aparece no cadastro e pode ser apagado
+await entrar('rh@demo'); run(`S.mes = null; S.aba = 'servidores'; S.msg = null`)
+await run(`executar(() => q(sb.from('servidores').update({turno_id: '20000000-0000-4000-8000-000000000002'}).eq('id', '${CARLOS}')))`)
+run(`S.edit = '${CARLOS}'; render()`)
+const jCarlos = run(`S.d.servidores.find(s => s.id === '${CARLOS}').jornadas`)
+ok(jCarlos.length === 1 && tela().includes('Horários anteriores') && tela().includes('Matutino <span class="sub">até'), 'RH troca o turno do Carlos: o Matutino aparece como horário anterior')
+await acao('apagar-jornada', {id: CARLOS, ate: jCarlos[0].ate}); run(`S.edit = '${CARLOS}'; render()`)
+ok(msg()?.[1] === 'Horário anterior apagado.' && !tela().includes('Horários anteriores'), 'RH apaga o horário anterior')
 
 console.log(`\n${total - falhas}/${total} verificações das telas ok`)
 process.exit(falhas ? 1 : 0)
