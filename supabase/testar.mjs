@@ -18,6 +18,11 @@ for (const f of readdirSync(new URL('migrations', import.meta.url)).sort().filte
 
 let falhas = 0, total = 0
 const ok = (cond, msg) => { total++; if (!cond) { falhas++; console.error('  FALHOU:', msg) } }
+
+// o modo demonstração (js/local.js, usado nos testes das telas e do totem) tem a própria lista de migrações: tem que ser a mesma da pasta
+const naPasta = readdirSync(new URL('migrations', import.meta.url)).sort().filter(f => !f.includes('_storage'))
+const noLocal = [...readFileSync(new URL('../js/local.js', import.meta.url), 'utf8').match(/MIGRACOES = \[([^\]]*)\]/)[1].matchAll(/'([^']+)'/g)].map(x => x[1])
+ok(naPasta.join() === noLocal.join(), 'js/local.js lista as mesmas migrações da pasta (faltando: ' + naPasta.filter(f => !noLocal.includes(f)).join(', ') + ')')
 const como = async (uid) => db.exec(`reset role; select set_config('request.jwt.claim.sub', '${uid || ''}', false); set role ${uid ? 'authenticated' : 'anon'};`)
 const q = async (sql, p) => (await db.query(sql, p)).rows
 const erro = async (sql, p, trecho, msg) => {
