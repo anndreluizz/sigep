@@ -125,8 +125,9 @@ function espelhoMes(s, batidas, mes, {turnos, escalas, feriados, justificativas 
   const pares = []; let aberto = null   // aj: alguma das batidas do par foi ajuste (lançada pelo RH / pedido aprovado)
   for (const b of batidas.filter(b => b.servidor_id === s.id).sort((a, b) => minAbs(a.em) - minAbs(b.em))) {
     const aj = b.origem === 'ajuste'
-    if (b.tipo === 'entrada') { if (aberto) pares.push(aberto); aberto = {ent: minAbs(b.em), aj} }
-    else { pares.push(aberto ? {...aberto, sai: minAbs(b.em), aj: aberto.aj || aj} : {sai: minAbs(b.em), aj}); aberto = null }
+    const fid = b.origem === 'totem' ? b.id : null   // id da batida com foto possível (só as do totem)
+    if (b.tipo === 'entrada') { if (aberto) pares.push(aberto); aberto = {ent: minAbs(b.em), aj, ei: fid} }
+    else { pares.push(aberto ? {...aberto, sai: minAbs(b.em), aj: aberto.aj || aj, si: fid} : {sai: minAbs(b.em), aj, si: fid}); aberto = null }
   }
   if (aberto) pares.push(aberto)
   const porDia = {}
@@ -467,7 +468,8 @@ function htmlEspelho(s) {
   const mes = mesAtual(), {dias, tot, turno} = espelhoMes(s, S.bat, mes, {...S.d, justificativas: S.just}, hoje())
   const [a, m] = mes.split('-'), nomeMes = new Date(Date.UTC(+a, +m - 1, 15)).toLocaleDateString('pt-BR', {month: 'long', year: 'numeric', timeZone: 'UTC'})
   const par = (p, dia) => `${p.ent ? hhmm(p.ent) : '?'}–${p.sai ? hhmm(p.sai) + (diaLocal(new Date(p.sai * 6e4).toISOString()) > dia ? ' <span class="sub">(+1)</span>' : '') : '…'}` +
-    (p.aj ? ' <span class="sub" title="Batida de ajuste (lançada pelo RH ou pedido aprovado)">✎</span>' : '')
+    (p.aj ? ' <span class="sub" title="Batida de ajuste (lançada pelo RH ou pedido aprovado)">✎</span>' : '') +
+    (S.perfil.papel === 'rh' ? [[p.ei, 'entrada'], [p.si, 'saída']].filter(x => x[0]).map(([id, t]) => ` <button class="btn ghost sm nao-imprime" data-a="foto" data-id="${id}" title="Foto da ${t}">📷</button>`).join('') : '')
   return `<div class="espelho"><div class="esp-topo"><div><b>${esc(s.nome)}</b> · matrícula ${esc(s.matricula)}<div class="sub">${esc(s.cargo)}${s.cargo ? ' · ' : ''}${esc(setorNome(s.setor_id))} · ${esc(jornada(s) || 'sem horário definido')}${turno ? ` (${hora(turno.entrada)}–${hora(turno.saida)})` : ''}</div></div>
       <div class="sub" style="text-align:right">${esc(NOME_INSTITUICAO)}<br>Folha de ponto · ${nomeMes}</div></div>
     <div class="grid g4" style="margin:12px 0">
