@@ -60,7 +60,7 @@ const mesAtual = () => S.mes || hoje().slice(0, 7)
 async function batidasDoMes(mes) {
   const [ini, fim] = limitesMes(mes), out = []
   for (let de = 0; ; de += 1000) {
-    const pag = await q(sb.from('batidas').select('servidor_id, tipo, em, origem').gte('em', addDia(ini, -1) + 'T00:00:00-04:00')
+    const pag = await q(sb.from('batidas').select('id, servidor_id, tipo, em, origem').gte('em', addDia(ini, -1) + 'T00:00:00-04:00')
       .lt('em', addDia(fim, 2) + 'T00:00:00-04:00').order('em').order('id').range(de, de + 999))
     out.push(...pag); if (pag.length < 1000) return out
   }
@@ -292,7 +292,7 @@ const TELAS = {
             ${l.faltou ? `<span class="pill red">${l.varios ? 'faltou no ' + esc(l.foco.nome) : 'faltou hoje'}</span>` : l.atrasado ? `<span class="pill amber">atrasado${l.varios ? ' no ' + esc(l.foco.nome) : ''}</span>` : '<span class="pill">ainda no horário</span>'}</div>`).join('') || '<div class="vazio">Todo mundo que devia vir já chegou.</div>'}
           ${abonados.length || fora.length ? `<p class="sub" style="margin-top:10px">Não contam hoje: ${[...abonados.map(l => `${esc(l.s.nome)} (${esc(l.abono)})`), ...fora.map(s => `${esc(s.nome)} (${SITUACAO[s.situacao][0].toLowerCase()})`)].join(', ')}.</p>` : ''}</div>
         <div class="card"><h3>Últimas batidas de hoje <small>${hojeBat.length}</small></h3>
-          ${hojeBat.slice(0, 8).map(b => `<div class="row"><div><b>${hhmm(minAbs(b.em))}</b> ${esc(nome[b.servidor_id]?.nome || '')}${b.origem === 'ajuste' ? ' <span class="sub">✎</span>' : ''}</div>
+          ${hojeBat.slice(0, 8).map(b => `<div class="row"><div><b>${hhmm(minAbs(b.em))}</b> ${esc(nome[b.servidor_id]?.nome || '')}${b.origem === 'ajuste' ? ' <span class="sub">✎</span>' : ''}${b.origem === 'totem' && papel === 'rh' ? ` <button class="btn ghost sm" data-a="foto" data-id="${b.id}" title="Foto tirada no totem">📷</button>` : ''}</div>
             <span class="pill ${b.tipo === 'entrada' ? 'green' : 'blue'}">${b.tipo === 'entrada' ? 'entrada' : 'saída'}</span></div>`).join('') || '<div class="vazio">Nenhuma batida hoje ainda.</div>'}
           <p class="sub" style="margin-top:10px">${ultTotem ? `Última batida pelo totem: ${quando(ultTotem)} (${ha(agora - ultTotem)}).` : 'O totem ainda não enviou batidas neste mês.'}</p></div></div>
       <div class="card" style="margin-top:14px"><h3>Pendências do mês</h3>
@@ -833,6 +833,18 @@ const ACOES = {
 
 // depois de cada ação: recarrega do banco e redesenha (false = só redesenha, sem recarregar)
 // form: o formulário que disparou. Se der erro, ele fica na tela, preenchido, com o erro no campo certo (js/etapas.js).
+// foto da batida (só o RH enxerga; some depois de 90 dias): abre por cima da tela, toque para fechar
+async function verFoto(id) {
+  try {
+    const f = (await q(sb.from('batida_fotos').select('foto').eq('batida_id', id)))[0]
+    const d = document.createElement('div')
+    d.style.cssText = 'position:fixed;inset:0;background:#000c;display:grid;place-items:center;z-index:99;color:#fff;text-align:center;padding:16px'
+    d.innerHTML = f ? `<div><img src="${f.foto}" alt="Foto da batida" style="max-width:90vw;max-height:80vh;border-radius:8px"><p>Toque para fechar</p></div>`
+      : '<p>Sem foto para esta batida (ela é apagada depois de 90 dias, ou o totem não a enviou).<br>Toque para fechar.</p>'
+    d.onclick = () => d.remove(); document.body.append(d)
+  } catch (e) { S.msg = ['erro', e.message]; render() }
+}
+
 async function executar(f, form) {
   try {
     const r = await f()
@@ -864,6 +876,7 @@ function ligarEventos() {
     const el = ev.target.closest('[data-a]'); if (!el || el.type === 'file') return
     if (el.type !== 'checkbox') ev.preventDefault()
     const a = el.dataset.a
+    if (a === 'foto') return verFoto(el.dataset.id)
     if (['sel', 'todos'].includes(a)) { ACOES[a](el); return render() }
     if (a === 'novo' || a === 'editar' || a === 'cancelar') { S.msg = null; S.convite = null; ACOES[a](el); return render() }
     executar(() => ACOES[a](el))
