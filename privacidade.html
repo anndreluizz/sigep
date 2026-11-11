@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacidade · SIGEP</title>
+<meta name="description" content="Como a Prefeitura Municipal de Tonantins usa os dados dos servidores no SIGEP, o sistema de ponto">
+<meta name="theme-color" content="#0d2f73">
+<link rel="icon" href="icone.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilo.css">
+<style>
+  .pol{max-width:760px;margin:18px auto 40px}
+  .pol h2{font-size:30px;margin-bottom:4px}
+  .pol h3{font-size:20px;margin:22px 0 6px}
+  .pol p,.pol li{font-size:15.5px;line-height:1.6}
+  .pol ul{padding-left:22px;margin:6px 0}
+</style>
+</head>
+<body>
+<!-- Versão 1 (novembro de 2026): RASCUNHO para revisão do jurídico da Prefeitura de Tonantins antes do uso oficial.
+     O que o jurídico / RH precisa definir e preencher (hoje o texto diz só "procure o RH" e "prazo definido pela Prefeitura"):
+       1. quem é o encarregado pelos dados (nome e contato), art. 41 da LGPD;
+       2. por quanto tempo os registros de ponto e as justificativas ficam guardados;
+       3. conferir as bases legais citadas (art. 7º, II e III; art. 11, II, "a" e "b"; art. 23);
+       4. o contrato ou termo com o desenvolvedor (operador), que hoje administra a conta do banco de dados.
+     Se o sistema passar a guardar foto na batida ou arquivo de atestado, esta página precisa ser atualizada ANTES. -->
+<header><div class="wrap">
+  <div class="brand"><div class="logo">SG</div>
+    <div><div class="bname">SIG<span>EP</span></div><div class="bsub">Sistema de Gestão de Ponto · Prefeitura Municipal de Tonantins/AM</div></div></div>
+</div></header>
+<main class="wrap pol"><div class="card">
+  <div class="eyebrow">Lei Geral de Proteção de Dados (LGPD · Lei 13.709/2018)</div>
+  <h2>Como usamos os dados dos servidores</h2>
+  <p>O SIGEP é o sistema de ponto da <b>Prefeitura Municipal de Tonantins</b>. Ele registra a entrada e a saída dos servidores pelo crachá e monta a folha de frequência do mês. Aqui explicamos, em linguagem simples, quais dados o sistema guarda, para quê e quem pode ver.</p>
+
+  <h3>Quem cuida dos dados</h3>
+  <p>A Prefeitura Municipal de Tonantins/AM é a responsável (controladora) pelos dados, por meio do setor de Recursos Humanos. Dúvidas e pedidos: procure o RH da Prefeitura, pessoalmente ou pelos canais oficiais.</p>
+  <p>O desenvolvedor do sistema atua como operador: administra o banco de dados e pode acessá-lo para manutenção e suporte, sempre a serviço da Prefeitura.</p>
+
+  <h3>Quais dados o sistema guarda</h3>
+  <ul>
+    <li><b>Do cadastro:</b> nome, matrícula, cargo, unidade onde trabalha, horário de trabalho, tipo de vínculo, data de admissão, situação (ativo, férias, afastado ou desligado), CPF e telefone.</li>
+    <li><b>Do ponto:</b> o dia e a hora de cada entrada e saída, em qual totem foi registrada e se foi guardada sem internet.</li>
+    <li><b>Das justificativas:</b> o tipo (atestado, férias, licença, serviço externo e outros), o período e o motivo escrito no pedido. O atestado em si é entregue em papel ao RH e <b>não é digitalizado no sistema</b>.</li>
+    <li><b>Da conta de acesso</b>, para quem entra no sistema: e-mail e senha. A senha fica cifrada; ninguém consegue lê-la.</li>
+    <li><b>Do histórico:</b> quem alterou um cadastro, uma batida ou um pedido, e quando.</li>
+  </ul>
+  <p>O sistema <b>não</b> guarda foto, impressão digital ou outro dado biométrico, nem a localização de ninguém. O ponto é batido só no totem da unidade, com o crachá; o celular do servidor não registra ponto.</p>
+
+  <h3>Para que usamos</h3>
+  <ul>
+    <li>Registrar a frequência dos servidores e calcular horas trabalhadas, atrasos e faltas.</li>
+    <li>Montar a folha de ponto e a folha de frequência mensal que a unidade envia ao RH e à secretaria responsável.</li>
+    <li>Receber e responder pedidos de justificativa.</li>
+    <li>Conferir quem alterou o quê, quando houver dúvida sobre um registro.</li>
+  </ul>
+  <p>Não vendemos, não emprestamos e não usamos os dados para propaganda.</p>
+
+  <h3>Base legal</h3>
+  <p>O controle de frequência é dever da administração pública. O uso dos dados se baseia no cumprimento de obrigação legal (art. 7º, II) e na execução de políticas e atribuições do serviço público (art. 7º, III, e art. 23). As informações de saúde que aparecem nas justificativas (atestado e licenças) são tratadas com base no art. 11, II, "a" e "b". Por isso o uso não depende de consentimento do servidor.</p>
+
+  <h3>Quem vê o quê</h3>
+  <ul>
+    <li><b>O servidor:</b> o próprio cadastro, a própria folha de ponto e os próprios pedidos. Não vê os colegas.</li>
+    <li><b>Secretaria ou chefia da unidade:</b> os servidores da própria unidade, com ponto, pedidos, CPF e telefone. Não vê outras unidades.</li>
+    <li><b>RH da Prefeitura:</b> todos os dados de todas as unidades.</li>
+    <li><b>Prefeito:</b> cadastro, ponto e pedidos de todas as unidades, só para consulta. Não vê CPF nem telefone.</li>
+    <li><b>Totem:</b> só registra a batida. Não consegue consultar nenhum dado.</li>
+  </ul>
+  <p>Nada do SIGEP é público: sem entrar com e-mail e senha, e sem um acesso liberado pelo RH, não se vê nenhum dado.</p>
+
+  <h3>Onde ficam e por quanto tempo</h3>
+  <ul>
+    <li>Os dados ficam num banco de dados protegido (Supabase, com servidores em São Paulo/SP), com acesso por senha e regras que limitam o que cada pessoa pode ver. O Supabase é uma empresa estrangeira que presta o serviço de hospedagem.</li>
+    <li>As páginas do sistema são hospedadas no GitHub Pages. Os dados dos servidores não ficam lá.</li>
+    <li>Os registros de ponto e as justificativas ficam guardados enquanto durar o vínculo e, depois, pelo prazo que a legislação exige para a guarda de registros de frequência, definido pela Prefeitura.</li>
+    <li>Quando o servidor é desligado, o crachá para de funcionar na hora e o cadastro fica guardado como histórico funcional.</li>
+  </ul>
+
+  <h3>Seus direitos</h3>
+  <p>O servidor pode, a qualquer momento:</p>
+  <ul>
+    <li>ver os próprios dados e a própria folha de ponto, entrando no sistema em "Meu ponto" ou pedindo ao RH;</li>
+    <li>pedir ao RH a correção de dados errados no cadastro;</li>
+    <li>pedir a correção de uma batida ou justificar uma falta, pelo próprio sistema ou no RH;</li>
+    <li>perguntar ao RH com quem os dados foram compartilhados.</li>
+  </ul>
+  <p>Os registros de ponto não podem ser apagados a pedido, porque a Prefeitura é obrigada por lei a guardá-los.</p>
+
+  <p class="note" style="margin-top:22px">Versão 1 · novembro de 2026 · Prefeitura Municipal de Tonantins/AM · <a href="./">Voltar ao SIGEP</a></p>
+</div></main>
+</body>
+</html>
