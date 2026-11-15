@@ -5,19 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SIGEP Demo</title>
 <meta name="description" content="Sistema de Gestão de Ponto da Prefeitura">
-<meta name="theme-color" content="#0d2f73">
+<meta name="theme-color" content="#0f4c5c">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icone.svg" type="image/svg+xml">
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Barlow+Condensed:wght@700&family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="estilo.css">
 </head>
 <body>
-<header><div class="wrap">
-  <div class="brand"><div class="logo">SG</div>
-    <div><div class="bname">SIG<span>EP</span></div><div class="bsub">Demonstração · dados fictícios, somem ao recarregar</div></div>
-    <div class="who" id="who"></div></div>
-  <nav class="tabs" id="tabs"></nav>
-</div></header>
+<header class="cab"><div class="faixa">
+  <img class="brasao" src="img/brasao.png" alt="Brasão da Prefeitura de Tonantins" width="48" height="48">
+  <div class="inst"><strong class="sigep">SIGEP</strong><b>Sistema de gestão de ponto</b><span>Demonstração · dados fictícios, somem ao recarregar</span></div>
+  <div class="who" id="who"></div></div>
+  <div class="menu" id="menu"><nav class="tabs" id="tabs"></nav></div></header>
 <main class="wrap" id="app"><div class="vazio">Carregando…</div></main>
 <div id="impressao"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>

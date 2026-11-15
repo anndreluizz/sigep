@@ -186,6 +186,8 @@ function render() {
     : S.email ? `<b>${esc(S.email)}</b><button data-a="sair">Sair</button>` : ''
   const pend = S.pedidos.filter(j => j.status === 'pendente').length
   $('#tabs').innerHTML = p ? ABAS[p.papel].map(([k, t]) => `<a href="#${k}" class="${k === S.aba ? 'on' : ''}">${t}${k === 'pedidos' && pend ? ` <span class="pill amber">${pend}</span>` : ''}</a>`).join('') : ''
+  const fixo = !!p && ABAS[p.papel].length <= 5   // celular: até 5 abas vão para a barra de baixo
+  $('#menu')?.classList?.toggle?.('fixo', fixo); document.body.classList?.toggle?.('menu-fixo', fixo)
   const msg = S.msg ? `<div class="msg ${S.msg[0]}" role="status">${esc(S.msg[1])}</div>` : ''
   $('#app').innerHTML = msg + (!S.email ? telaEntrar() : !p ? telaConvite() : (TELAS[S.aba] || TELAS[ABAS[p.papel][0][0]])())
 }
