@@ -33,7 +33,8 @@ main{padding:22px 16px 30px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--sombra)}
 .card h3{font-size:19px;margin-bottom:10px;display:flex;justify-content:space-between;gap:8px}
 .card h3 small{font:400 12px var(--fonte);color:var(--muted)}
-.stat b{display:block;font:700 34px/1 var(--fonte)}.stat span{font-size:13px;color:var(--muted)}
+.stat{border-top:4px solid var(--line)}.stat.neutro{border-top-color:var(--g9)}.stat.ok{border-top-color:var(--ok)}.stat.warn{border-top-color:#d99a1b}.stat.bad{border-top-color:var(--red)}
+.stat b{display:block;font:600 36px/1.1 var(--fonte)}.stat span{font-size:13px;color:var(--muted)}
 .stat.ok b{color:var(--ok)}.stat.warn b{color:var(--amber)}.stat.bad b{color:var(--red)}
 .pill{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:99px;background:#e8ebf2;color:#454f63;white-space:nowrap}
 .pill.green{background:var(--okbg);color:var(--ok)}.pill.amber{background:var(--amberbg);color:var(--amber)}.pill.red{background:var(--redbg);color:var(--red)}.pill.blue{background:var(--bluebg);color:var(--blue)}
@@ -163,3 +164,9 @@ main.wrap{padding-top:22px;padding-bottom:30px}
   .et-trilho{height:10px}
   .et-erro{font-size:14.5px}
 }
+
+/* Painel: "Precisa da sua atenção" */
+.atencao .row{padding:13px 0}
+.atencao .row b{font-weight:600}
+.atencao .row .sub{margin-top:2px}
+@media screen{.atencao .row .sub{font-size:14px}}

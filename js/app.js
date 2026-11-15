@@ -269,8 +269,9 @@ const TELAS = {
     const semTotem = prev.length && horario && (!ultTotem || agora - ultTotem > 180)
     const pend = S.pedidos.filter(j => j.status === 'pendente').length, semSaida = linhas.reduce((t, l) => t + l.tot.pendencias, 0)
     const faltasMes = linhas.reduce((t, l) => t + l.tot.faltas, 0), dia = +hj.slice(8)
+    const mesAtualNome = new Date(Date.parse(hj + 'T12:00:00Z')).toLocaleDateString('pt-BR', {month: 'long', timeZone: 'UTC'})
     const mesPassado = new Date(Date.UTC(+hj.slice(0, 4), +hj.slice(5, 7) - 2, 15)).toLocaleDateString('pt-BR', {month: 'long', timeZone: 'UTC'})
-    const stat = (n, t, cls = '') => `<div class="card stat ${cls}"><b>${n}</b><span>${t}</span></div>`
+    const stat = (n, t, cls = 'neutro') => `<div class="card stat ${cls}"><b>${n}</b><span>${t}</span></div>`
     const ha = m => m < 60 ? `há ${m} min` : m < 1440 ? `há ${Math.floor(m / 60)} h ${m % 60} min` : `há ${Math.floor(m / 1440)} dia${m >= 2880 ? 's' : ''}`
     const quando = m => { const d = diaLocal(new Date(m * 6e4).toISOString()); return (d === hj ? 'hoje' : dataBR(d)) + ' às ' + hhmm(m) }
     const unidade = papel === 'chefe' ? setorNome(S.perfil.setor_id) : 'Todas as unidades'
@@ -280,15 +281,15 @@ const TELAS = {
           pedidos: S.pedidos.filter(j => j.status === 'pendente' && nome[j.servidor_id]?.setor_id === st.id).length} })
         .filter(x => x.prev || x.pedidos).sort((a, b) => b.falta - a.falta)
       const n = (v, c) => v ? `<span class="pill ${c}">${v}</span>` : '0'
-      return `<div class="card" style="margin-top:14px"><h3>Por unidade <small>${g.length}</small></h3><div class="tabela"><table><thead><tr><th>Unidade</th><th>Previstos</th><th>Chegaram</th><th>Não chegaram</th><th>Atrasados</th><th>Pedidos</th></tr></thead><tbody>
+      return `<div class="card" style="margin-top:14px"><h3>Por unidade <small>${g.length}</small></h3><div class="tabela"><table><thead><tr><th>Unidade</th><th>Deveriam vir</th><th>Chegaram</th><th>Não chegaram</th><th>Atrasados</th><th>Pedidos</th></tr></thead><tbody>
         ${g.map(x => `<tr><td>${esc(x.st.nome)}</td><td>${x.prev}</td><td>${x.ok}</td><td>${n(x.falta, 'red')}</td><td>${n(x.atraso, 'amber')}</td><td>${n(x.pedidos, 'blue')}</td></tr>`).join('')}
         </tbody></table>${g.length ? '' : '<div class="vazio">Ninguém previsto hoje.</div>'}</div></div>`
     })()
     const titulo = 'Hoje, ' + new Date(Date.parse(hj + 'T12:00:00Z')).toLocaleDateString('pt-BR', {weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC'})
     return cabecalho(unidade, titulo, `<span class="sub">Atualiza sozinho a cada minuto · ${hhmm(agora)}</span>`) +
       (semTotem ? `<div class="msg erro">O totem ${ultTotem ? `não envia batida ${ha(agora - ultTotem)}` : 'ainda não enviou nenhuma batida'}. Confira se o tablet está ligado, com bateria e internet.</div>` : '') +
-      `<div class="grid g4">${stat(prev.length, 'previstos hoje')}${stat(chegaram.length, 'já chegaram', 'ok')}
-        ${stat(atrasados.length, 'atrasados', atrasados.length ? 'warn' : 'ok')}${stat(faltam.length, faltam.some(l => !l.faltou) ? 'ainda não chegaram' : 'não vieram hoje', faltam.length ? 'bad' : 'ok')}</div>
+      `<div class="grid g4">${stat(prev.length, 'deveriam vir hoje')}${stat(chegaram.length, 'já chegaram', 'ok')}
+        ${stat(atrasados.length, atrasados.length === 1 ? 'está atrasado' : 'estão atrasados', atrasados.length ? 'warn' : 'ok')}${stat(faltam.length, faltam.some(l => !l.faltou) ? 'ainda não vieram' : 'não vieram hoje', faltam.length ? 'bad' : 'ok')}</div>
       <div class="grid g2" style="margin-top:14px">
         <div class="card"><h3>Ainda não chegou <small>${faltam.length}</small></h3>
           ${faltam.map(l => `<div class="row"><div><b>${esc(l.s.nome)}</b><div class="sub">${papel === 'chefe' ? '' : esc(setorNome(l.s.setor_id)) + ' · '}${esc(jornada(l.s))} · ${l.faltou ? 'era às' : 'entra'} ${hhmm(l.foco.ent)}${l.varios ? ` (${esc(l.foco.nome)})` : ''}</div></div>
@@ -298,10 +299,10 @@ const TELAS = {
           ${hojeBat.slice(0, 8).map(b => `<div class="row"><div><b>${hhmm(minAbs(b.em))}</b> ${esc(nome[b.servidor_id]?.nome || '')}${b.origem === 'ajuste' ? ' <span class="sub">✎</span>' : ''}${b.origem === 'totem' && papel === 'rh' ? ` <button class="btn ghost sm" data-a="foto" data-id="${b.id}" title="Foto tirada no totem">📷</button>` : ''}</div>
             <span class="pill ${b.tipo === 'entrada' ? 'green' : 'blue'}">${b.tipo === 'entrada' ? 'entrada' : 'saída'}</span></div>`).join('') || '<div class="vazio">Nenhuma batida hoje ainda.</div>'}
           <p class="sub" style="margin-top:10px">${ultTotem ? `Última batida pelo totem: ${quando(ultTotem)} (${ha(agora - ultTotem)}).` : 'O totem ainda não enviou batidas neste mês.'}</p></div></div>
-      <div class="card" style="margin-top:14px"><h3>Pendências do mês</h3>
-        <div class="row"><div><b>Pedidos de justificativa esperando resposta</b></div>${papel === 'prefeito' ? `<b>${pend}</b>` : `<a class="btn ${pend ? '' : 'ghost'} sm" href="#pedidos">${pend} · ver</a>`}</div>
-        <div class="row"><div><b>Batidas sem saída</b><div class="sub">alguém esqueceu de bater a saída</div></div><a class="btn ${semSaida ? '' : 'ghost'} sm" href="#espelho">${semSaida} · ver</a></div>
-        <div class="row"><div><b>Faltas no mês</b><div class="sub">sem justificativa aprovada</div></div><a class="btn ${faltasMes ? '' : 'ghost'} sm" href="#espelho">${faltasMes} · ver</a></div>
+      <div class="card atencao" style="margin-top:14px"><h3>Precisa da sua atenção <small>mês de ${mesAtualNome}</small></h3>
+        <div class="row"><div><b>${pend ? (pend === 1 ? '1 pessoa pediu para justificar' : pend + ' pessoas pediram para justificar') : 'Nenhum pedido de justificativa esperando resposta'}</b><div class="sub">atestado médico ou esquecimento de bater o ponto</div></div>${papel === 'prefeito' ? '' : `<a class="btn ${pend ? '' : 'ghost'} sm" href="#pedidos">Ver pedidos</a>`}</div>
+        <div class="row"><div><b>${semSaida ? (semSaida === 1 ? '1 vez alguém esqueceu de bater a saída' : semSaida + ' vezes alguém esqueceu de bater a saída') : 'Nenhuma batida sem saída'}</b><div class="sub">o sistema não sabe a hora em que a pessoa saiu; corrija na folha dela</div></div><a class="btn ${semSaida ? '' : 'ghost'} sm" href="#espelho">Ver quem</a></div>
+        <div class="row"><div><b>${faltasMes ? (faltasMes === 1 ? '1 falta ainda sem justificativa' : faltasMes + ' faltas ainda sem justificativa') : 'Nenhuma falta sem justificativa'}</b><div class="sub">até ontem; se houver atestado ou abono, lance na folha da pessoa</div></div><a class="btn ${faltasMes ? '' : 'ghost'} sm" href="#espelho">Ver quem</a></div>
         ${dia <= 5 && papel !== 'prefeito' ? `<div class="msg info" style="margin:10px 0 0">Até o dia 5: confira a frequência de <b>${mesPassado}</b> (justificativas e batidas sem saída) e envie ao RH.</div>` : ''}
       </div>${porSetor}`
   },
