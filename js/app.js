@@ -314,18 +314,29 @@ const TELAS = {
     const f = S.filtro, mes = mesAtual(), lista = S.d.servidores.filter(x => x.situacao !== 'desligado' && (!f.setor || x.setor_id === f.setor))
     const linhas = lista.map(x => ({s: x, ...espelhoMes(x, S.bat, mes, {...S.d, justificativas: S.just}, hoje())}))
       .sort((a, b) => b.tot.faltas + b.tot.pendencias - (a.tot.faltas + a.tot.pendencias) || a.s.nome.localeCompare(b.s.nome))
-    const n = (v, cor) => v ? `<span class="pill ${cor}">${v}</span>` : '<span class="sub">0</span>'
+    const pl = (v, um, mais) => v === 1 ? um : v + ' ' + mais
+    const situacao = tot => {   // frase simples do mês
+      const partes = []
+      if (tot.faltas) partes.push(pl(tot.faltas, '1 falta', 'faltas'))
+      if (tot.atrasos) partes.push(pl(tot.atrasos, '1 atraso', 'atrasos'))
+      if (tot.pendencias) partes.push(tot.pendencias === 1 ? 'falta a saída de 1 dia' : 'falta a saída de ' + tot.pendencias + ' dias')
+      if (!partes.length) return ['green', 'Tudo certo', 'Nenhuma falta nem atraso']
+      if (tot.faltas) return ['red', pl(tot.faltas, '1 falta', 'faltas'), partes.join(', ')]
+      if (tot.pendencias) return ['red', 'Precisa de ajuste', partes.join(', ')]
+      return ['amber', pl(tot.atrasos, '1 atraso', 'atrasos'), partes.join(', ')]
+    }
     return cabecalho(S.perfil.papel === 'chefe' ? setorNome(S.perfil.setor_id) : 'Frequência', 'Frequência do mês') + `<div class="card"><div class="filtros">
         <input type="month" data-mes value="${mes}" aria-label="Mês">
         ${S.perfil.papel === 'chefe' ? '' : `<select data-filtro="setor">${opcoes(S.d.setores.map(x => [x.id, x.nome]), f.setor, 'Todos os setores')}</select>`}
         <button class="btn ghost" data-a="ver-semed" title="Uma folha por categoria (01 Pedagogo … 12 PACCET), no modelo da SEMED">Folha SEMED</button>
-      </div>${envioMes(mes)}<div class="tabela"><table><thead><tr><th>Servidor</th><th>Setor</th><th>Previsto</th><th>Trabalhado</th><th>Saldo</th><th>Faltas</th><th>Atrasos</th><th>Pendências</th><th></th></tr></thead><tbody>
-      ${linhas.map(({s, tot, turno}) => `<tr><td>${esc(s.nome)}<div class="sub">mat. ${esc(s.matricula)}${turno ? '' : ' · sem horário definido'}</div></td><td>${esc(setorNome(s.setor_id))}</td>
-        <td>${duracao(tot.previsto)}</td><td>${duracao(tot.trabalhado)}</td><td><b style="color:var(${tot.saldo < 0 ? '--red' : '--goldink'})">${duracao(tot.saldo)}</b></td>
-        <td>${n(tot.faltas, 'red')}</td><td>${n(tot.atrasos, 'amber')}</td><td>${n(tot.pendencias, 'red')}</td>
-        <td><button class="btn ghost sm" data-a="ver-espelho" data-id="${s.id}">Folha de ponto</button></td></tr>`).join('')}
+      </div>${envioMes(mes)}<div class="tabela"><table class="freq"><thead><tr><th>Servidor</th><th>Como está o mês</th><th>Horas trabalhadas até ontem</th><th></th></tr></thead><tbody>
+      ${linhas.map(({s, tot, turno}) => { const [cor, rotulo, obs] = situacao(tot), pct = tot.previsto > 0 ? Math.max(0, Math.min(100, Math.round(tot.trabalhado / tot.previsto * 100))) : 100, falta = tot.previsto - tot.trabalhado
+        return `<tr><td>${esc(s.nome)}<div class="sub">${esc(s.cargo || '')}${s.cargo ? ' · ' : ''}mat. ${esc(s.matricula)}${S.perfil.papel === 'chefe' ? '' : ' · ' + esc(setorNome(s.setor_id))}${turno ? '' : ' · sem horário definido'}</div></td>
+        <td><span class="pill ${cor}">${esc(rotulo)}</span><div class="sub">${esc(obs)}</div></td>
+        <td class="horas"><b>${duracao(tot.trabalhado)}</b> <span class="sub">de ${duracao(tot.previsto)}</span><div class="barra"><i class="${cor}" style="width:${pct}%"></i></div><small class="${falta > 0 ? 'neg' : 'pos'}">${falta > 0 ? 'faltam ' + duracao(falta) : 'em dia'}</small></td>
+        <td><button class="btn ghost sm" data-a="ver-espelho" data-id="${s.id}">Abrir folha</button></td></tr>` }).join('')}
       </tbody></table>${linhas.length ? '' : '<div class="vazio">Nenhum servidor em atividade.</div>'}</div>
-      <p class="sub">Conta até ontem; hoje ainda está em andamento. Quem tem falta ou pendência aparece primeiro.</p></div>`
+      <p class="sub">Cada barra compara as horas trabalhadas até ontem com as que a pessoa devia ter trabalhado até ontem. Hoje ainda está em andamento. Quem precisa de ajuste aparece primeiro.</p></div>`
   },
 
   pedidos() {
