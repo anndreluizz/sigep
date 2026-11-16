@@ -346,7 +346,7 @@ const TELAS = {
         ${papel === 'prefeito' || it.cor === 'green' && it.ordem === 5 ? '' : `<button class="btn ghost sm" data-a="ajustar" data-id="${it.chave}">Ajustar</button>`}
         ${S.aj === it.chave ? `<div style="flex-basis:100%">${form(it)}</div>` : ''}</div>`
     return cabecalho(papel === 'chefe' ? setorNome(S.perfil.setor_id) : 'Todas as unidades', 'Presença') + `<div class="card"><div class="filtros">
-        <button class="btn ${S.pdia === 'ontem' ? 'ghost' : ''}" data-a="pres-dia" data-id="hoje">Hoje</button><button class="btn ${S.pdia === 'ontem' ? '' : 'ghost'}" data-a="pres-dia" data-id="ontem">Ontem</button>
+        <span style="display:flex;gap:8px;flex:0 0 auto"><button class="btn ${S.pdia === 'ontem' ? 'ghost' : ''}" data-a="pres-dia" data-id="hoje">Hoje</button><button class="btn ${S.pdia === 'ontem' ? '' : 'ghost'}" data-a="pres-dia" data-id="ontem">Ontem</button></span>
         ${papel === 'chefe' ? '' : `<select data-filtro="setor" aria-label="Unidade">${opcoes(S.d.setores.map(x => [x.id, x.nome]), f.setor, 'Todas as unidades')}</select>`}
       </div><p class="sub">${dataBR(dia)}: ${itens.length ? `<b>${nChegou}</b> de ${itens.length} já bateram o ponto · <b>${itens.filter(precisa).length}</b> precisam de atenção` : 'ninguém previsto para este dia'}.</p>
       ${turnos.map(t => { const ls = itens.filter(x => x.turno === t).sort((a, b) => a.ordem - b.ordem || a.s.nome.localeCompare(b.s.nome))
@@ -379,7 +379,7 @@ const TELAS = {
       </div>${envioMes(mes)}<div class="tabela"><table class="freq"><thead><tr><th>Servidor</th><th>Como está o mês</th><th>Horas trabalhadas até ontem</th><th></th></tr></thead><tbody>
       ${linhas.map(({s, tot, turno}) => { const [cor, rotulo, obs] = situacao(tot), pct = tot.previsto > 0 ? Math.max(0, Math.min(100, Math.round(tot.trabalhado / tot.previsto * 100))) : 100, falta = tot.previsto - tot.trabalhado
         return `<tr><td>${esc(s.nome)}<div class="sub">${esc(s.cargo || '')}${s.cargo ? ' · ' : ''}mat. ${esc(s.matricula)}${S.perfil.papel === 'chefe' ? '' : ' · ' + esc(setorNome(s.setor_id))}${turno ? '' : ' · sem horário definido'}</div></td>
-        <td><span class="pill ${cor}">${esc(rotulo)}</span><div class="sub">${esc(obs)}</div></td>
+        <td><span class="pill ${cor}">${esc(rotulo)}</span><div class="sub">${esc(obs === rotulo ? (tot.faltas ? 'sem justificativa' : tot.atrasos ? 'dentro do mês' : '') : obs)}</div></td>
         <td class="horas"><b>${duracao(tot.trabalhado)}</b> <span class="sub">de ${duracao(tot.previsto)}</span><div class="barra"><i class="${cor}" style="width:${pct}%"></i></div><small class="${falta > 0 ? 'neg' : 'pos'}">${falta > 0 ? 'faltam ' + duracao(falta) : 'em dia'}</small></td>
         <td><button class="btn ghost sm" data-a="ver-espelho" data-id="${s.id}">Abrir folha</button></td></tr>` }).join('')}
       </tbody></table>${linhas.length ? '' : '<div class="vazio">Nenhum servidor em atividade.</div>'}</div>
