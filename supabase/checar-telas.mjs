@@ -270,7 +270,12 @@ ok(tela().includes('Ana Paula') && !tela().includes('Lançar justificativa') && 
 await cliente._db.query(`insert into batidas (servidor_id, tipo, em, origem, totem_id) values ($1, 'entrada', now() - interval '5 minutes', 'totem', '00000000-0000-4000-8000-000000000005')`, [ANA])
 await entrar('chefe@demo'); run(`S.aba = 'painel'; S.mes = '2026-08'`); await run('executar(async () => {})')
 ok(run('S.mes') === null && tela().includes('Últimas batidas de hoje') && tela().includes('Ana Paula') && tela().includes('pelo totem: hoje'), 'painel da secretaria: mês de hoje, batida de agora e status do totem')
-ok(tela().includes('Pendências do mês') && !tela().includes('Por unidade') && !/undefined|NaN/.test(tela()), 'painel da secretaria: pendências, sem a tabela por unidade')
+ok(tela().includes('Precisa da sua atenção') && !tela().includes('Por unidade') && !/undefined|NaN/.test(tela()), 'painel da secretaria: pendências, sem a tabela por unidade')
+await entrar('chefe@demo'); run(`S.aba = 'presenca'`); await run('executar(async () => {})')
+ok(tela().includes('Presença') && tela().includes('já bateram o ponto') && !/undefined|NaN/.test(tela()), 'aba Presença: contagem por turno, sem lixo na tela')
+run(`S.pdia = 'ontem'`); run('render()')
+ok(tela().includes('Ontem') && !/undefined|NaN/.test(tela()), 'aba Presença: ontem abre sem erro')
+run(`S.pdia = 'hoje'`)
 await entrar('rh@demo'); run(`S.aba = 'painel'`); await run('executar(async () => {})')
 ok(tela().includes('Por unidade') && tela().includes('Todas as unidades') && !/undefined|NaN/.test(tela()), 'painel do RH: todas as unidades')
 

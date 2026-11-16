@@ -2,7 +2,7 @@
 // a tela só esconde o que o perfil não usa. `sb` é o cliente do Supabase (ou o local, na demonstração).
 let sb
 const S = {perfil: null, email: null, aba: null, d: {}, msg: null, edit: null, sel: new Set(), imp: null, filtro: {setor: '', busca: '', sit: 'ativos'}, convite: null,
-  mes: null, esp: null, semed: false, bat: [],   // espelho: mês 'aaaa-mm', servidor aberto, batidas do mês
+  mes: null, pdia: 'hoje', aj: null, esp: null, semed: false, bat: [],   // espelho: mês 'aaaa-mm', servidor aberto, batidas do mês
   just: [], pedidos: [], jtipo: 'atestado'}   // justificativas do mês, pedidos recentes, tipo escolhido no formulário
 const $ = s => document.querySelector(s)
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]))
@@ -10,9 +10,9 @@ const hoje = () => new Date().toLocaleDateString('sv-SE', {timeZone: 'America/Ma
 const dataBR = d => d ? d.split('-').reverse().join('/') : ''
 
 const ABAS = {
-  rh: [['painel', 'Painel'], ['servidores', 'Servidores'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos'], ['setores', 'Setores'], ['horarios', 'Horários'], ['acessos', 'Acessos'], ['importar', 'Importar planilha']],
+  rh: [['painel', 'Painel'], ['presenca', 'Presença'], ['servidores', 'Servidores'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos'], ['setores', 'Setores'], ['horarios', 'Horários'], ['acessos', 'Acessos'], ['importar', 'Importar planilha']],
   prefeito: [['painel', 'Painel'], ['servidores', 'Servidores'], ['espelho', 'Frequência']],
-  chefe: [['painel', 'Painel'], ['servidores', 'Minha equipe'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos'], ['acessos', 'Acessos']],
+  chefe: [['painel', 'Painel'], ['presenca', 'Presença'], ['servidores', 'Minha equipe'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos'], ['acessos', 'Acessos']],
   servidor: [['ponto', 'Meu ponto'], ['meu', 'Meu cadastro']],
   totem: [['totem', 'Totem']],
 }
@@ -40,7 +40,7 @@ async function carregar() {
     p === 'totem' ? [] : q(sb.from('servidores').select(COLS_SERV).order('nome')),
     gestor ? q(sb.rpc('dados_pessoais')) : [], rh ? q(sb.from('perfis').select('*').order('nome')) : [],
     gestor ? q(sb.from('convites').select('*').order('criado_em', {ascending: false})) : [],
-    ['espelho', 'ponto', 'painel'].includes(S.aba) ? batidasDoMes(mesAtual()) : [],
+    ['espelho', 'ponto', 'painel', 'presenca'].includes(S.aba) ? batidasDoMes(mesAtual()) : [],
     p === 'totem' ? [] : q(sb.from('jornadas_anteriores').select('*').order('ate'))])
   const pes = Object.fromEntries(pessoais.map(x => [x.id, x]))
   // horários anteriores de cada servidor: a folha de um dia usa o horário que valia naquele dia (ver espelhoMes)
@@ -186,6 +186,8 @@ function render() {
     : S.email ? `<b>${esc(S.email)}</b><button data-a="sair">Sair</button>` : ''
   const pend = S.pedidos.filter(j => j.status === 'pendente').length
   $('#tabs').innerHTML = p ? ABAS[p.papel].map(([k, t]) => `<a href="#${k}" class="${k === S.aba ? 'on' : ''}">${t}${k === 'pedidos' && pend ? ` <span class="pill amber">${pend}</span>` : ''}</a>`).join('') : ''
+  const fixo = !!p && ABAS[p.papel].length <= 5   // celular: até 5 abas vão para a barra de baixo
+  $('#menu')?.classList?.toggle?.('fixo', fixo); document.body.classList?.toggle?.('menu-fixo', fixo)
   const msg = S.msg ? `<div class="msg ${S.msg[0]}" role="status">${esc(S.msg[1])}</div>` : ''
   $('#app').innerHTML = msg + (!S.email ? telaEntrar() : !p ? telaConvite() : (TELAS[S.aba] || TELAS[ABAS[p.papel][0][0]])())
 }
@@ -231,12 +233,12 @@ const TELAS = {
         <input type="search" placeholder="Buscar por nome ou matrícula" data-filtro="busca" value="${esc(f.busca)}">
         ${S.perfil.papel === 'chefe' ? '' : `<select data-filtro="setor">${opcoes(S.d.setores.map(s => [s.id, s.nome]), f.setor, 'Todos os setores')}</select>`}
         <select data-filtro="sit">${opcoes([['ativos', 'Em atividade'], ['desligados', 'Desligados'], ['todos', 'Todos']], f.sit)}</select>
-      </div><div class="tabela"><table><thead><tr>
+      </div><div class="tabela"><table class="emcartao"><thead><tr>
         ${rh ? `<th><input type="checkbox" data-a="todos" aria-label="Selecionar todos" ${lista.length && lista.every(s => S.sel.has(s.id)) ? 'checked' : ''}></th>` : ''}
         <th>Matrícula</th><th>Nome</th><th>Setor</th><th>Cargo</th><th>Horário</th><th>Situação</th>${rh ? '<th></th>' : ''}</tr></thead><tbody>
         ${lista.map(s => `<tr class="${s.situacao === 'desligado' ? 'off' : ''}">
           ${rh ? `<td><input type="checkbox" data-a="sel" data-id="${s.id}" aria-label="Selecionar ${esc(s.nome)}" ${S.sel.has(s.id) ? 'checked' : ''}></td>` : ''}
-          <td>${esc(s.matricula)}</td><td>${esc(s.nome)}${outrosVinculos(s).length ? ` <span class="pill blue" title="Mesmo CPF: um crachá serve para os vínculos">${outrosVinculos(s).length + 1} vínculos</span>` : ''}</td><td>${esc(setorNome(s.setor_id))}</td><td>${esc(s.cargo)}</td><td>${esc(jornada(s))}</td>
+          <td data-l="Matrícula">${esc(s.matricula)}</td><td class="nm">${esc(s.nome)}${outrosVinculos(s).length ? ` <span class="pill blue" title="Mesmo CPF: um crachá serve para os vínculos">${outrosVinculos(s).length + 1} vínculos</span>` : ''}</td><td data-l="Setor">${esc(setorNome(s.setor_id))}</td><td data-l="Cargo">${esc(s.cargo)}</td><td data-l="Horário">${esc(jornada(s))}</td>
           <td><span class="pill ${SITUACAO[s.situacao][1]}">${SITUACAO[s.situacao][0]}${s.desligado_em ? ' ' + dataBR(s.desligado_em) : ''}</span></td>
           ${rh ? `<td><button class="btn ghost sm" data-a="editar" data-id="${s.id}">Editar</button></td>` : ''}</tr>`).join('')}
       </tbody></table>${lista.length ? '' : '<div class="vazio">Nenhum servidor encontrado.</div>'}</div>
@@ -267,8 +269,9 @@ const TELAS = {
     const semTotem = prev.length && horario && (!ultTotem || agora - ultTotem > 180)
     const pend = S.pedidos.filter(j => j.status === 'pendente').length, semSaida = linhas.reduce((t, l) => t + l.tot.pendencias, 0)
     const faltasMes = linhas.reduce((t, l) => t + l.tot.faltas, 0), dia = +hj.slice(8)
+    const mesAtualNome = new Date(Date.parse(hj + 'T12:00:00Z')).toLocaleDateString('pt-BR', {month: 'long', timeZone: 'UTC'})
     const mesPassado = new Date(Date.UTC(+hj.slice(0, 4), +hj.slice(5, 7) - 2, 15)).toLocaleDateString('pt-BR', {month: 'long', timeZone: 'UTC'})
-    const stat = (n, t, cls = '') => `<div class="card stat ${cls}"><b>${n}</b><span>${t}</span></div>`
+    const stat = (n, t, cls = 'neutro') => `<div class="card stat ${cls}"><b>${n}</b><span>${t}</span></div>`
     const ha = m => m < 60 ? `há ${m} min` : m < 1440 ? `há ${Math.floor(m / 60)} h ${m % 60} min` : `há ${Math.floor(m / 1440)} dia${m >= 2880 ? 's' : ''}`
     const quando = m => { const d = diaLocal(new Date(m * 6e4).toISOString()); return (d === hj ? 'hoje' : dataBR(d)) + ' às ' + hhmm(m) }
     const unidade = papel === 'chefe' ? setorNome(S.perfil.setor_id) : 'Todas as unidades'
@@ -278,15 +281,15 @@ const TELAS = {
           pedidos: S.pedidos.filter(j => j.status === 'pendente' && nome[j.servidor_id]?.setor_id === st.id).length} })
         .filter(x => x.prev || x.pedidos).sort((a, b) => b.falta - a.falta)
       const n = (v, c) => v ? `<span class="pill ${c}">${v}</span>` : '0'
-      return `<div class="card" style="margin-top:14px"><h3>Por unidade <small>${g.length}</small></h3><div class="tabela"><table><thead><tr><th>Unidade</th><th>Previstos</th><th>Chegaram</th><th>Não chegaram</th><th>Atrasados</th><th>Pedidos</th></tr></thead><tbody>
+      return `<div class="card" style="margin-top:14px"><h3>Por unidade <small>${g.length}</small></h3><div class="tabela"><table><thead><tr><th>Unidade</th><th>Deveriam vir</th><th>Chegaram</th><th>Não chegaram</th><th>Atrasados</th><th>Pedidos</th></tr></thead><tbody>
         ${g.map(x => `<tr><td>${esc(x.st.nome)}</td><td>${x.prev}</td><td>${x.ok}</td><td>${n(x.falta, 'red')}</td><td>${n(x.atraso, 'amber')}</td><td>${n(x.pedidos, 'blue')}</td></tr>`).join('')}
         </tbody></table>${g.length ? '' : '<div class="vazio">Ninguém previsto hoje.</div>'}</div></div>`
     })()
     const titulo = 'Hoje, ' + new Date(Date.parse(hj + 'T12:00:00Z')).toLocaleDateString('pt-BR', {weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC'})
     return cabecalho(unidade, titulo, `<span class="sub">Atualiza sozinho a cada minuto · ${hhmm(agora)}</span>`) +
       (semTotem ? `<div class="msg erro">O totem ${ultTotem ? `não envia batida ${ha(agora - ultTotem)}` : 'ainda não enviou nenhuma batida'}. Confira se o tablet está ligado, com bateria e internet.</div>` : '') +
-      `<div class="grid g4">${stat(prev.length, 'previstos hoje')}${stat(chegaram.length, 'já chegaram', 'ok')}
-        ${stat(atrasados.length, 'atrasados', atrasados.length ? 'warn' : 'ok')}${stat(faltam.length, faltam.some(l => !l.faltou) ? 'ainda não chegaram' : 'não vieram hoje', faltam.length ? 'bad' : 'ok')}</div>
+      `<div class="grid g4">${stat(prev.length, 'deveriam vir hoje')}${stat(chegaram.length, 'já chegaram', 'ok')}
+        ${stat(atrasados.length, atrasados.length === 1 ? 'está atrasado' : 'estão atrasados', atrasados.length ? 'warn' : 'ok')}${stat(faltam.length, faltam.some(l => !l.faltou) ? 'ainda não vieram' : 'não vieram hoje', faltam.length ? 'bad' : 'ok')}</div>
       <div class="grid g2" style="margin-top:14px">
         <div class="card"><h3>Ainda não chegou <small>${faltam.length}</small></h3>
           ${faltam.map(l => `<div class="row"><div><b>${esc(l.s.nome)}</b><div class="sub">${papel === 'chefe' ? '' : esc(setorNome(l.s.setor_id)) + ' · '}${esc(jornada(l.s))} · ${l.faltou ? 'era às' : 'entra'} ${hhmm(l.foco.ent)}${l.varios ? ` (${esc(l.foco.nome)})` : ''}</div></div>
@@ -296,12 +299,59 @@ const TELAS = {
           ${hojeBat.slice(0, 8).map(b => `<div class="row"><div><b>${hhmm(minAbs(b.em))}</b> ${esc(nome[b.servidor_id]?.nome || '')}${b.origem === 'ajuste' ? ' <span class="sub">✎</span>' : ''}${b.origem === 'totem' && papel === 'rh' ? ` <button class="btn ghost sm" data-a="foto" data-id="${b.id}" title="Foto tirada no totem">📷</button>` : ''}</div>
             <span class="pill ${b.tipo === 'entrada' ? 'green' : 'blue'}">${b.tipo === 'entrada' ? 'entrada' : 'saída'}</span></div>`).join('') || '<div class="vazio">Nenhuma batida hoje ainda.</div>'}
           <p class="sub" style="margin-top:10px">${ultTotem ? `Última batida pelo totem: ${quando(ultTotem)} (${ha(agora - ultTotem)}).` : 'O totem ainda não enviou batidas neste mês.'}</p></div></div>
-      <div class="card" style="margin-top:14px"><h3>Pendências do mês</h3>
-        <div class="row"><div><b>Pedidos de justificativa esperando resposta</b></div>${papel === 'prefeito' ? `<b>${pend}</b>` : `<a class="btn ${pend ? '' : 'ghost'} sm" href="#pedidos">${pend} · ver</a>`}</div>
-        <div class="row"><div><b>Batidas sem saída</b><div class="sub">alguém esqueceu de bater a saída</div></div><a class="btn ${semSaida ? '' : 'ghost'} sm" href="#espelho">${semSaida} · ver</a></div>
-        <div class="row"><div><b>Faltas no mês</b><div class="sub">sem justificativa aprovada</div></div><a class="btn ${faltasMes ? '' : 'ghost'} sm" href="#espelho">${faltasMes} · ver</a></div>
-        ${dia <= 5 && papel !== 'prefeito' ? `<div class="msg info" style="margin:10px 0 0">Até o dia 5: confira a frequência de <b>${mesPassado}</b> (justificativas e batidas sem saída) e envie ao RH.</div>` : ''}
+      <div class="card atencao" style="margin-top:14px"><h3>Precisa da sua atenção <small>mês de ${mesAtualNome}</small></h3>
+        <div class="row"><div><b>${pend ? (pend === 1 ? '1 pessoa pediu para justificar' : pend + ' pessoas pediram para justificar') : 'Nenhum pedido de justificativa esperando resposta'}</b><div class="sub">atestado médico ou esquecimento de bater o ponto</div></div>${papel === 'prefeito' ? '' : `<a class="btn ${pend ? '' : 'ghost'} sm" href="#pedidos">Ver pedidos</a>`}</div>
+        <div class="row"><div><b>${semSaida ? (semSaida === 1 ? '1 vez alguém esqueceu de bater a saída' : semSaida + ' vezes alguém esqueceu de bater a saída') : 'Nenhuma batida sem saída'}</b><div class="sub">o sistema não sabe a hora em que a pessoa saiu; corrija na folha dela</div></div><a class="btn ${semSaida ? '' : 'ghost'} sm" href="#espelho">Ver quem</a></div>
+        <div class="row"><div><b>${faltasMes ? (faltasMes === 1 ? '1 falta ainda sem justificativa' : faltasMes + ' faltas ainda sem justificativa') : 'Nenhuma falta sem justificativa'}</b><div class="sub">até ontem; se houver atestado ou abono, lance na folha da pessoa</div></div><a class="btn ${faltasMes ? '' : 'ghost'} sm" href="#espelho">Ver quem</a></div>
+        ${dia <= 5 && papel !== 'prefeito' ? `<div class="msg info" style="margin:10px 0 0">Até o dia 5: confira a frequência de <b>${mesPassado}</b> (justificativas e batidas sem saída) e envie ao RH.${papel === 'chefe' ? ` <button class="btn sm" data-a="ir-mes-passado" style="margin-left:8px">Conferir e enviar</button>` : ''}</div>` : ''}
       </div>${porSetor}`
+  },
+
+  // Presença: quem devia chegar hoje (ou ontem), por turno, e quem já bateu. Corrige na hora pelo mesmo caminho da justificativa.
+  presenca() {
+    const papel = S.perfil.papel, hj = hoje(), dia = S.pdia === 'ontem' ? addDia(hj, -1) : hj, agora = Math.round(Date.now() / 6e4), f = S.filtro
+    const cad = {...S.d, justificativas: S.just}, d0 = inicioDia(dia), nm = {entrada: 'entrada', saida: 'saída'}
+    const itens = []
+    for (const s of S.d.servidores.filter(x => x.situacao === 'ativo' && (!f.setor || x.setor_id === f.setor))) {
+      const d = espelhoMes(s, S.bat, dia.slice(0, 7), cad, hj, agora).dias.find(x => x.dia === dia)
+      if (!d) continue
+      const abono = d.oc.find(o => o[1] === 'green')?.[0]
+      d.periodos.forEach((pe, i) => {
+        const ent = pe.pares.find(p => p.ent)?.ent, sai = [...pe.pares].reverse().find(p => p.sai)?.sai, aberto = pe.pares.some(p => p.ent && !p.sai)
+        let est, cor, ordem, tipo = ent ? 'saida' : 'entrada'
+        if (abono) [est, cor, ordem] = [abono, 'green', 5]
+        else if (ent) {
+          const at = ent - pe.ent - pe.t.tolerancia_min
+          if (sai && !aberto) [est, cor, ordem] = [`Saiu às ${hhmm(sai)}`, 'green', 4]
+          else if (dia < hj && aberto) [est, cor, ordem] = [`Chegou às ${hhmm(ent)}, sem saída`, 'red', 1]
+          else [est, cor, ordem] = [`Chegou às ${hhmm(ent)}${at > 0 ? ` (atrasou ${duracao(ent - pe.ent)})` : ''}`, at > 0 ? 'amber' : 'green', at > 0 ? 2 : 4]
+        } else if (dia < hj || agora > pe.sai) [est, cor, ordem] = ['Faltou', 'red', 0]
+        else if (agora > pe.ent + pe.t.tolerancia_min) [est, cor, ordem] = [`Atrasado: devia chegar às ${hhmm(pe.ent)}`, 'amber', 1]
+        else if (agora >= pe.ent) [est, cor, ordem] = ['Chegando agora', 'blue', 3]
+        else [est, cor, ordem] = [`Entra às ${hhmm(pe.ent)}`, 'blue', 3]
+        itens.push({s, pe, i, est, cor, ordem, tipo, chave: `${s.id}|${i}|${dia}`, turno: pe.nome})
+      })
+    }
+    const precisa = it => it.ordem <= 1, nChegou = itens.filter(x => x.cor === 'green' || x.cor === 'amber' && x.ordem === 2).length
+    const turnos = [...new Set(itens.map(x => x.turno))].sort((a, b) => itens.find(x => x.turno === a).pe.ent - itens.find(x => x.turno === b).pe.ent)
+    const form = it => `<form class="f" data-f="justificativa" data-id="${it.s.id}" style="margin:8px 0 4px">
+        <input type="hidden" name="tipo" value="batida"><input type="hidden" name="dia" value="${dia}">
+        <label>Era a<select name="batida_tipo">${opcoes([['entrada', 'Entrada'], ['saida', 'Saída']], it.tipo)}</select></label>
+        <label>Hora<input name="hora" type="time" required value="${hhmm(it.tipo === 'entrada' ? it.pe.ent : it.pe.sai)}"></label>
+        <label class="span2">Por quê<textarea name="motivo" required minlength="5" maxlength="500" rows="2" data-opcoes="Esqueci de bater o ponto|Esqueci o crachá|Totem sem internet"></textarea></label>
+        <div class="acoes span2"><button class="btn sm">${papel === 'prefeito' ? 'Pedir' : 'Lançar batida'}</button><button type="button" class="btn ghost sm" data-a="fechar-aj">Cancelar</button></div></form>`
+    const linha = it => `<div class="row" style="flex-wrap:wrap"><div style="flex:1;min-width:200px"><b>${esc(it.s.nome)}</b>
+        <div class="sub">${esc(it.s.cargo || '')}${it.s.cargo && papel !== 'chefe' ? ' · ' : ''}${papel === 'chefe' ? '' : esc(setorNome(it.s.setor_id))}</div></div>
+        <span class="pill ${it.cor}">${esc(it.est)}</span>
+        ${papel === 'prefeito' || it.cor === 'green' && it.ordem === 5 ? '' : `<button class="btn ghost sm" data-a="ajustar" data-id="${it.chave}">Ajustar</button>`}
+        ${S.aj === it.chave ? `<div style="flex-basis:100%">${form(it)}</div>` : ''}</div>`
+    return cabecalho(papel === 'chefe' ? setorNome(S.perfil.setor_id) : 'Todas as unidades', 'Presença') + `<div class="card"><div class="filtros">
+        <span style="display:flex;gap:8px;flex:0 0 auto"><button class="btn ${S.pdia === 'ontem' ? 'ghost' : ''}" data-a="pres-dia" data-id="hoje">Hoje</button><button class="btn ${S.pdia === 'ontem' ? '' : 'ghost'}" data-a="pres-dia" data-id="ontem">Ontem</button></span>
+        ${papel === 'chefe' ? '' : `<select data-filtro="setor" aria-label="Unidade">${opcoes(S.d.setores.map(x => [x.id, x.nome]), f.setor, 'Todas as unidades')}</select>`}
+      </div><p class="sub">${dataBR(dia)}: ${itens.length ? `<b>${nChegou}</b> de ${itens.length} já bateram o ponto · <b>${itens.filter(precisa).length}</b> precisam de atenção` : 'ninguém previsto para este dia'}.</p>
+      ${turnos.map(t => { const ls = itens.filter(x => x.turno === t).sort((a, b) => a.ordem - b.ordem || a.s.nome.localeCompare(b.s.nome))
+        return `<h3 style="margin-top:14px">${esc(t)} <small>${ls.length}</small></h3>${ls.map(linha).join('')}` }).join('')}
+      <p class="sub">"Ajustar" lança a batida que faltou, já aprovada, e marca com ✎ na folha. Só dá para corrigir hoje e ontem por aqui; dias mais antigos, pela Folha de ponto.</p></div>`
   },
 
   espelho() {
@@ -311,18 +361,29 @@ const TELAS = {
     const f = S.filtro, mes = mesAtual(), lista = S.d.servidores.filter(x => x.situacao !== 'desligado' && (!f.setor || x.setor_id === f.setor))
     const linhas = lista.map(x => ({s: x, ...espelhoMes(x, S.bat, mes, {...S.d, justificativas: S.just}, hoje())}))
       .sort((a, b) => b.tot.faltas + b.tot.pendencias - (a.tot.faltas + a.tot.pendencias) || a.s.nome.localeCompare(b.s.nome))
-    const n = (v, cor) => v ? `<span class="pill ${cor}">${v}</span>` : '<span class="sub">0</span>'
+    const pl = (v, um, mais) => v === 1 ? um : v + ' ' + mais
+    const situacao = tot => {   // frase simples do mês
+      const partes = []
+      if (tot.faltas) partes.push(pl(tot.faltas, '1 falta', 'faltas'))
+      if (tot.atrasos) partes.push(pl(tot.atrasos, '1 atraso', 'atrasos'))
+      if (tot.pendencias) partes.push(tot.pendencias === 1 ? 'falta a saída de 1 dia' : 'falta a saída de ' + tot.pendencias + ' dias')
+      if (!partes.length) return ['green', 'Tudo certo', 'Nenhuma falta nem atraso']
+      if (tot.faltas) return ['red', pl(tot.faltas, '1 falta', 'faltas'), partes.join(', ')]
+      if (tot.pendencias) return ['red', 'Precisa de ajuste', partes.join(', ')]
+      return ['amber', pl(tot.atrasos, '1 atraso', 'atrasos'), partes.join(', ')]
+    }
     return cabecalho(S.perfil.papel === 'chefe' ? setorNome(S.perfil.setor_id) : 'Frequência', 'Frequência do mês') + `<div class="card"><div class="filtros">
         <input type="month" data-mes value="${mes}" aria-label="Mês">
         ${S.perfil.papel === 'chefe' ? '' : `<select data-filtro="setor">${opcoes(S.d.setores.map(x => [x.id, x.nome]), f.setor, 'Todos os setores')}</select>`}
         <button class="btn ghost" data-a="ver-semed" title="Uma folha por categoria (01 Pedagogo … 12 PACCET), no modelo da SEMED">Folha SEMED</button>
-      </div>${envioMes(mes)}<div class="tabela"><table><thead><tr><th>Servidor</th><th>Setor</th><th>Previsto</th><th>Trabalhado</th><th>Saldo</th><th>Faltas</th><th>Atrasos</th><th>Pendências</th><th></th></tr></thead><tbody>
-      ${linhas.map(({s, tot, turno}) => `<tr><td>${esc(s.nome)}<div class="sub">mat. ${esc(s.matricula)}${turno ? '' : ' · sem horário definido'}</div></td><td>${esc(setorNome(s.setor_id))}</td>
-        <td>${duracao(tot.previsto)}</td><td>${duracao(tot.trabalhado)}</td><td><b style="color:var(${tot.saldo < 0 ? '--red' : '--goldink'})">${duracao(tot.saldo)}</b></td>
-        <td>${n(tot.faltas, 'red')}</td><td>${n(tot.atrasos, 'amber')}</td><td>${n(tot.pendencias, 'red')}</td>
-        <td><button class="btn ghost sm" data-a="ver-espelho" data-id="${s.id}">Folha de ponto</button></td></tr>`).join('')}
+      </div>${envioMes(mes)}<div class="tabela"><table class="freq"><thead><tr><th>Servidor</th><th>Como está o mês</th><th>Horas trabalhadas até ontem</th><th></th></tr></thead><tbody>
+      ${linhas.map(({s, tot, turno}) => { const [cor, rotulo, obs] = situacao(tot), pct = tot.previsto > 0 ? Math.max(0, Math.min(100, Math.round(tot.trabalhado / tot.previsto * 100))) : 100, falta = tot.previsto - tot.trabalhado
+        return `<tr><td>${esc(s.nome)}<div class="sub">${esc(s.cargo || '')}${s.cargo ? ' · ' : ''}mat. ${esc(s.matricula)}${S.perfil.papel === 'chefe' ? '' : ' · ' + esc(setorNome(s.setor_id))}${turno ? '' : ' · sem horário definido'}</div></td>
+        <td><span class="pill ${cor}">${esc(rotulo)}</span><div class="sub">${esc(obs === rotulo ? (tot.faltas ? 'sem justificativa' : tot.atrasos ? 'dentro do mês' : '') : obs)}</div></td>
+        <td class="horas"><b>${duracao(tot.trabalhado)}</b> <span class="sub">de ${duracao(tot.previsto)}</span><div class="barra"><i class="${cor}" style="width:${pct}%"></i></div><small class="${falta > 0 ? 'neg' : 'pos'}">${falta > 0 ? 'faltam ' + duracao(falta) : 'em dia'}</small></td>
+        <td><button class="btn ghost sm" data-a="ver-espelho" data-id="${s.id}">Abrir folha</button></td></tr>` }).join('')}
       </tbody></table>${linhas.length ? '' : '<div class="vazio">Nenhum servidor em atividade.</div>'}</div>
-      <p class="sub">Conta até ontem; hoje ainda está em andamento. Quem tem falta ou pendência aparece primeiro.</p></div>`
+      <p class="sub">Cada barra compara as horas trabalhadas até ontem com as que a pessoa devia ter trabalhado até ontem. Hoje ainda está em andamento. Quem precisa de ajuste aparece primeiro.</p></div>`
   },
 
   pedidos() {
@@ -746,6 +807,7 @@ const FORMS = {
     if (!batida && d.fim < d.inicio) throw erroCampo('A data final é antes da inicial.', 'fim')
     const j = await q(sb.rpc('pedir_justificativa', {p_servidor: f.dataset.id, p_tipo: d.tipo, p_inicio: batida ? null : d.inicio, p_fim: batida ? null : d.fim,
       p_motivo: d.motivo, p_batida_tipo: batida ? d.batida_tipo : null, p_batida_em: batida ? `${d.dia}T${d.hora}:00-04:00` : null}))
+    S.aj = null
     return ['ok', j.status === 'aprovada' ? 'Justificativa lançada e aprovada.' : 'Pedido enviado. Sua chefia ou o RH vai responder.']
   },
   async decidir(f, ev) {
@@ -789,6 +851,10 @@ const ACOES = {
     if (!confirm('Desistir deste pedido?')) return false
     await q(sb.from('justificativas').delete().eq('id', el.dataset.id)); return ['ok', 'Pedido retirado.']
   },
+  'ir-mes-passado'() { S.mes = addDia(hoje().slice(0, 7) + '-01', -1).slice(0, 7); location.hash = '#espelho'; return false },
+  'pres-dia'(el) { S.pdia = el.dataset.id; S.aj = null; return false },
+  'ajustar'(el) { S.aj = el.dataset.id; return false },
+  'fechar-aj'() { S.aj = null; return false },
   async 'enviar-mes'() {
     const mes = mesAtual()
     if (!confirm(`Enviar a frequência de ${nomeDoMes(mes)} ao RH? Depois disso só o RH corrige este mês.`)) return false
@@ -898,8 +964,8 @@ function ligarEventos() {
     if (el.dataset.filtro === 'busca') { S.filtro.busca = el.value; render(); const b = $('[data-filtro="busca"]'); b.focus(); b.setSelectionRange(b.value.length, b.value.length) }
   })
   addEventListener('hashchange', () => {
-    S.aba = location.hash.slice(1); S.edit = null; S.msg = null; S.convite = null; S.esp = null; S.semed = false
-    if (S.perfil && ['espelho', 'ponto', 'painel'].includes(S.aba)) executar(async () => {}); else render()   // espelho e painel buscam as batidas
+    S.aba = location.hash.slice(1); S.edit = null; S.msg = null; S.convite = null; S.esp = null; S.semed = false; S.aj = null
+    if (S.perfil && ['espelho', 'ponto', 'painel', 'presenca'].includes(S.aba)) executar(async () => {}); else render()   // espelho e painel buscam as batidas
   })
 }
 
