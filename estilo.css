@@ -177,3 +177,11 @@ main.wrap{padding-top:22px;padding-bottom:30px}
 .barra i{display:block;height:100%;border-radius:99px;background:var(--ok)}
 .barra i.red{background:var(--red)}.barra i.amber{background:var(--amber)}
 .freq small.neg{color:var(--red)}.freq small.pos{color:var(--ok)}
+@media (max-width:640px){
+  .freq,.freq tbody,.freq tr,.freq td{display:block;width:100%}
+  .freq thead{display:none}
+  .freq tr{padding:14px 0;border-bottom:1px solid var(--line)}.freq tr:last-child{border:0}
+  .freq td{padding:0 0 10px;border:0}.freq td:last-child{padding:0}
+  .freq td:first-child{font-weight:600;font-size:16px}.freq td:first-child .sub{font-weight:400}
+  .freq .horas{min-width:0}.freq td:last-child .btn{width:100%}
+}
