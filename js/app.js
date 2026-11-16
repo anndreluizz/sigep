@@ -2,7 +2,7 @@
 // a tela só esconde o que o perfil não usa. `sb` é o cliente do Supabase (ou o local, na demonstração).
 let sb
 const S = {perfil: null, email: null, aba: null, d: {}, msg: null, edit: null, sel: new Set(), imp: null, filtro: {setor: '', busca: '', sit: 'ativos'}, convite: null,
-  mes: null, esp: null, semed: false, bat: [],   // espelho: mês 'aaaa-mm', servidor aberto, batidas do mês
+  mes: null, pdia: 'hoje', aj: null, esp: null, semed: false, bat: [],   // espelho: mês 'aaaa-mm', servidor aberto, batidas do mês
   just: [], pedidos: [], jtipo: 'atestado'}   // justificativas do mês, pedidos recentes, tipo escolhido no formulário
 const $ = s => document.querySelector(s)
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]))
@@ -10,9 +10,9 @@ const hoje = () => new Date().toLocaleDateString('sv-SE', {timeZone: 'America/Ma
 const dataBR = d => d ? d.split('-').reverse().join('/') : ''
 
 const ABAS = {
-  rh: [['painel', 'Painel'], ['servidores', 'Servidores'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos'], ['setores', 'Setores'], ['horarios', 'Horários'], ['acessos', 'Acessos'], ['importar', 'Importar planilha']],
+  rh: [['painel', 'Painel'], ['presenca', 'Presença'], ['servidores', 'Servidores'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos'], ['setores', 'Setores'], ['horarios', 'Horários'], ['acessos', 'Acessos'], ['importar', 'Importar planilha']],
   prefeito: [['painel', 'Painel'], ['servidores', 'Servidores'], ['espelho', 'Frequência']],
-  chefe: [['painel', 'Painel'], ['servidores', 'Minha equipe'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos'], ['acessos', 'Acessos']],
+  chefe: [['painel', 'Painel'], ['presenca', 'Presença'], ['servidores', 'Minha equipe'], ['espelho', 'Frequência'], ['pedidos', 'Pedidos'], ['acessos', 'Acessos']],
   servidor: [['ponto', 'Meu ponto'], ['meu', 'Meu cadastro']],
   totem: [['totem', 'Totem']],
 }
@@ -40,7 +40,7 @@ async function carregar() {
     p === 'totem' ? [] : q(sb.from('servidores').select(COLS_SERV).order('nome')),
     gestor ? q(sb.rpc('dados_pessoais')) : [], rh ? q(sb.from('perfis').select('*').order('nome')) : [],
     gestor ? q(sb.from('convites').select('*').order('criado_em', {ascending: false})) : [],
-    ['espelho', 'ponto', 'painel'].includes(S.aba) ? batidasDoMes(mesAtual()) : [],
+    ['espelho', 'ponto', 'painel', 'presenca'].includes(S.aba) ? batidasDoMes(mesAtual()) : [],
     p === 'totem' ? [] : q(sb.from('jornadas_anteriores').select('*').order('ate'))])
   const pes = Object.fromEntries(pessoais.map(x => [x.id, x]))
   // horários anteriores de cada servidor: a folha de um dia usa o horário que valia naquele dia (ver espelhoMes)
@@ -305,6 +305,53 @@ const TELAS = {
         <div class="row"><div><b>${faltasMes ? (faltasMes === 1 ? '1 falta ainda sem justificativa' : faltasMes + ' faltas ainda sem justificativa') : 'Nenhuma falta sem justificativa'}</b><div class="sub">até ontem; se houver atestado ou abono, lance na folha da pessoa</div></div><a class="btn ${faltasMes ? '' : 'ghost'} sm" href="#espelho">Ver quem</a></div>
         ${dia <= 5 && papel !== 'prefeito' ? `<div class="msg info" style="margin:10px 0 0">Até o dia 5: confira a frequência de <b>${mesPassado}</b> (justificativas e batidas sem saída) e envie ao RH.</div>` : ''}
       </div>${porSetor}`
+  },
+
+  // Presença: quem devia chegar hoje (ou ontem), por turno, e quem já bateu. Corrige na hora pelo mesmo caminho da justificativa.
+  presenca() {
+    const papel = S.perfil.papel, hj = hoje(), dia = S.pdia === 'ontem' ? addDia(hj, -1) : hj, agora = Math.round(Date.now() / 6e4), f = S.filtro
+    const cad = {...S.d, justificativas: S.just}, d0 = inicioDia(dia), nm = {entrada: 'entrada', saida: 'saída'}
+    const itens = []
+    for (const s of S.d.servidores.filter(x => x.situacao === 'ativo' && (!f.setor || x.setor_id === f.setor))) {
+      const d = espelhoMes(s, S.bat, dia.slice(0, 7), cad, hj, agora).dias.find(x => x.dia === dia)
+      if (!d) continue
+      const abono = d.oc.find(o => o[1] === 'green')?.[0]
+      d.periodos.forEach((pe, i) => {
+        const ent = pe.pares.find(p => p.ent)?.ent, sai = [...pe.pares].reverse().find(p => p.sai)?.sai, aberto = pe.pares.some(p => p.ent && !p.sai)
+        let est, cor, ordem, tipo = ent ? 'saida' : 'entrada'
+        if (abono) [est, cor, ordem] = [abono, 'green', 5]
+        else if (ent) {
+          const at = ent - pe.ent - pe.t.tolerancia_min
+          if (sai && !aberto) [est, cor, ordem] = [`Saiu às ${hhmm(sai)}`, 'green', 4]
+          else if (dia < hj && aberto) [est, cor, ordem] = [`Chegou às ${hhmm(ent)}, sem saída`, 'red', 1]
+          else [est, cor, ordem] = [`Chegou às ${hhmm(ent)}${at > 0 ? ` (atrasou ${duracao(ent - pe.ent)})` : ''}`, at > 0 ? 'amber' : 'green', at > 0 ? 2 : 4]
+        } else if (dia < hj || agora > pe.sai) [est, cor, ordem] = ['Faltou', 'red', 0]
+        else if (agora > pe.ent + pe.t.tolerancia_min) [est, cor, ordem] = [`Atrasado: devia chegar às ${hhmm(pe.ent)}`, 'amber', 1]
+        else if (agora >= pe.ent) [est, cor, ordem] = ['Chegando agora', 'blue', 3]
+        else [est, cor, ordem] = [`Entra às ${hhmm(pe.ent)}`, 'blue', 3]
+        itens.push({s, pe, i, est, cor, ordem, tipo, chave: `${s.id}|${i}|${dia}`, turno: pe.nome})
+      })
+    }
+    const precisa = it => it.ordem <= 1, nChegou = itens.filter(x => x.cor === 'green' || x.cor === 'amber' && x.ordem === 2).length
+    const turnos = [...new Set(itens.map(x => x.turno))].sort((a, b) => itens.find(x => x.turno === a).pe.ent - itens.find(x => x.turno === b).pe.ent)
+    const form = it => `<form class="f" data-f="justificativa" data-id="${it.s.id}" style="margin:8px 0 4px">
+        <input type="hidden" name="tipo" value="batida"><input type="hidden" name="dia" value="${dia}">
+        <label>Era a<select name="batida_tipo">${opcoes([['entrada', 'Entrada'], ['saida', 'Saída']], it.tipo)}</select></label>
+        <label>Hora<input name="hora" type="time" required value="${hhmm(it.tipo === 'entrada' ? it.pe.ent : it.pe.sai)}"></label>
+        <label class="span2">Por quê<textarea name="motivo" required minlength="5" maxlength="500" rows="2" data-opcoes="Esqueci de bater o ponto|Esqueci o crachá|Totem sem internet"></textarea></label>
+        <div class="acoes span2"><button class="btn sm">${papel === 'prefeito' ? 'Pedir' : 'Lançar batida'}</button><button type="button" class="btn ghost sm" data-a="fechar-aj">Cancelar</button></div></form>`
+    const linha = it => `<div class="row" style="flex-wrap:wrap"><div style="flex:1;min-width:200px"><b>${esc(it.s.nome)}</b>
+        <div class="sub">${esc(it.s.cargo || '')}${it.s.cargo && papel !== 'chefe' ? ' · ' : ''}${papel === 'chefe' ? '' : esc(setorNome(it.s.setor_id))}</div></div>
+        <span class="pill ${it.cor}">${esc(it.est)}</span>
+        ${papel === 'prefeito' || it.cor === 'green' && it.ordem === 5 ? '' : `<button class="btn ghost sm" data-a="ajustar" data-id="${it.chave}">Ajustar</button>`}
+        ${S.aj === it.chave ? `<div style="flex-basis:100%">${form(it)}</div>` : ''}</div>`
+    return cabecalho(papel === 'chefe' ? setorNome(S.perfil.setor_id) : 'Todas as unidades', 'Presença') + `<div class="card"><div class="filtros">
+        <button class="btn ${S.pdia === 'ontem' ? 'ghost' : ''}" data-a="pres-dia" data-id="hoje">Hoje</button><button class="btn ${S.pdia === 'ontem' ? '' : 'ghost'}" data-a="pres-dia" data-id="ontem">Ontem</button>
+        ${papel === 'chefe' ? '' : `<select data-filtro="setor" aria-label="Unidade">${opcoes(S.d.setores.map(x => [x.id, x.nome]), f.setor, 'Todas as unidades')}</select>`}
+      </div><p class="sub">${dataBR(dia)}: ${itens.length ? `<b>${nChegou}</b> de ${itens.length} já bateram o ponto · <b>${itens.filter(precisa).length}</b> precisam de atenção` : 'ninguém previsto para este dia'}.</p>
+      ${turnos.map(t => { const ls = itens.filter(x => x.turno === t).sort((a, b) => a.ordem - b.ordem || a.s.nome.localeCompare(b.s.nome))
+        return `<h3 style="margin-top:14px">${esc(t)} <small>${ls.length}</small></h3>${ls.map(linha).join('')}` }).join('')}
+      <p class="sub">"Ajustar" lança a batida que faltou, já aprovada, e marca com ✎ na folha. Só dá para corrigir hoje e ontem por aqui; dias mais antigos, pela Folha de ponto.</p></div>`
   },
 
   espelho() {
@@ -760,6 +807,7 @@ const FORMS = {
     if (!batida && d.fim < d.inicio) throw erroCampo('A data final é antes da inicial.', 'fim')
     const j = await q(sb.rpc('pedir_justificativa', {p_servidor: f.dataset.id, p_tipo: d.tipo, p_inicio: batida ? null : d.inicio, p_fim: batida ? null : d.fim,
       p_motivo: d.motivo, p_batida_tipo: batida ? d.batida_tipo : null, p_batida_em: batida ? `${d.dia}T${d.hora}:00-04:00` : null}))
+    S.aj = null
     return ['ok', j.status === 'aprovada' ? 'Justificativa lançada e aprovada.' : 'Pedido enviado. Sua chefia ou o RH vai responder.']
   },
   async decidir(f, ev) {
@@ -803,6 +851,9 @@ const ACOES = {
     if (!confirm('Desistir deste pedido?')) return false
     await q(sb.from('justificativas').delete().eq('id', el.dataset.id)); return ['ok', 'Pedido retirado.']
   },
+  'pres-dia'(el) { S.pdia = el.dataset.id; S.aj = null; return false },
+  'ajustar'(el) { S.aj = el.dataset.id; return false },
+  'fechar-aj'() { S.aj = null; return false },
   async 'enviar-mes'() {
     const mes = mesAtual()
     if (!confirm(`Enviar a frequência de ${nomeDoMes(mes)} ao RH? Depois disso só o RH corrige este mês.`)) return false
@@ -912,8 +963,8 @@ function ligarEventos() {
     if (el.dataset.filtro === 'busca') { S.filtro.busca = el.value; render(); const b = $('[data-filtro="busca"]'); b.focus(); b.setSelectionRange(b.value.length, b.value.length) }
   })
   addEventListener('hashchange', () => {
-    S.aba = location.hash.slice(1); S.edit = null; S.msg = null; S.convite = null; S.esp = null; S.semed = false
-    if (S.perfil && ['espelho', 'ponto', 'painel'].includes(S.aba)) executar(async () => {}); else render()   // espelho e painel buscam as batidas
+    S.aba = location.hash.slice(1); S.edit = null; S.msg = null; S.convite = null; S.esp = null; S.semed = false; S.aj = null
+    if (S.perfil && ['espelho', 'ponto', 'painel', 'presenca'].includes(S.aba)) executar(async () => {}); else render()   // espelho e painel buscam as batidas
   })
 }
 
