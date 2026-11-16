@@ -185,3 +185,12 @@ main.wrap{padding-top:22px;padding-bottom:30px}
   .freq td:first-child{font-weight:600;font-size:16px}.freq td:first-child .sub{font-weight:400}
   .freq .horas{min-width:0}.freq td:last-child .btn{width:100%}
 }
+@media (max-width:640px){
+  .emcartao,.emcartao tbody,.emcartao tr,.emcartao td{display:block;width:100%}
+  .emcartao thead{display:none}
+  .emcartao tr{padding:12px 0;border-bottom:1px solid var(--line)}.emcartao tr:last-child{border:0}
+  .emcartao td{padding:2px 0;border:0;text-align:left}
+  .emcartao td[data-l]::before{content:attr(data-l) ": ";color:var(--muted);font-size:13px}
+  .emcartao td.nm{font-weight:600;font-size:16px;margin:4px 0}
+  .emcartao td .btn.sm{margin-top:8px}
+}

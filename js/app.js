@@ -233,12 +233,12 @@ const TELAS = {
         <input type="search" placeholder="Buscar por nome ou matrícula" data-filtro="busca" value="${esc(f.busca)}">
         ${S.perfil.papel === 'chefe' ? '' : `<select data-filtro="setor">${opcoes(S.d.setores.map(s => [s.id, s.nome]), f.setor, 'Todos os setores')}</select>`}
         <select data-filtro="sit">${opcoes([['ativos', 'Em atividade'], ['desligados', 'Desligados'], ['todos', 'Todos']], f.sit)}</select>
-      </div><div class="tabela"><table><thead><tr>
+      </div><div class="tabela"><table class="emcartao"><thead><tr>
         ${rh ? `<th><input type="checkbox" data-a="todos" aria-label="Selecionar todos" ${lista.length && lista.every(s => S.sel.has(s.id)) ? 'checked' : ''}></th>` : ''}
         <th>Matrícula</th><th>Nome</th><th>Setor</th><th>Cargo</th><th>Horário</th><th>Situação</th>${rh ? '<th></th>' : ''}</tr></thead><tbody>
         ${lista.map(s => `<tr class="${s.situacao === 'desligado' ? 'off' : ''}">
           ${rh ? `<td><input type="checkbox" data-a="sel" data-id="${s.id}" aria-label="Selecionar ${esc(s.nome)}" ${S.sel.has(s.id) ? 'checked' : ''}></td>` : ''}
-          <td>${esc(s.matricula)}</td><td>${esc(s.nome)}${outrosVinculos(s).length ? ` <span class="pill blue" title="Mesmo CPF: um crachá serve para os vínculos">${outrosVinculos(s).length + 1} vínculos</span>` : ''}</td><td>${esc(setorNome(s.setor_id))}</td><td>${esc(s.cargo)}</td><td>${esc(jornada(s))}</td>
+          <td data-l="Matrícula">${esc(s.matricula)}</td><td class="nm">${esc(s.nome)}${outrosVinculos(s).length ? ` <span class="pill blue" title="Mesmo CPF: um crachá serve para os vínculos">${outrosVinculos(s).length + 1} vínculos</span>` : ''}</td><td data-l="Setor">${esc(setorNome(s.setor_id))}</td><td data-l="Cargo">${esc(s.cargo)}</td><td data-l="Horário">${esc(jornada(s))}</td>
           <td><span class="pill ${SITUACAO[s.situacao][1]}">${SITUACAO[s.situacao][0]}${s.desligado_em ? ' ' + dataBR(s.desligado_em) : ''}</span></td>
           ${rh ? `<td><button class="btn ghost sm" data-a="editar" data-id="${s.id}">Editar</button></td>` : ''}</tr>`).join('')}
       </tbody></table>${lista.length ? '' : '<div class="vazio">Nenhum servidor encontrado.</div>'}</div>
