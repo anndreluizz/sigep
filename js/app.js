@@ -303,7 +303,7 @@ const TELAS = {
         <div class="row"><div><b>${pend ? (pend === 1 ? '1 pessoa pediu para justificar' : pend + ' pessoas pediram para justificar') : 'Nenhum pedido de justificativa esperando resposta'}</b><div class="sub">atestado médico ou esquecimento de bater o ponto</div></div>${papel === 'prefeito' ? '' : `<a class="btn ${pend ? '' : 'ghost'} sm" href="#pedidos">Ver pedidos</a>`}</div>
         <div class="row"><div><b>${semSaida ? (semSaida === 1 ? '1 vez alguém esqueceu de bater a saída' : semSaida + ' vezes alguém esqueceu de bater a saída') : 'Nenhuma batida sem saída'}</b><div class="sub">o sistema não sabe a hora em que a pessoa saiu; corrija na folha dela</div></div><a class="btn ${semSaida ? '' : 'ghost'} sm" href="#espelho">Ver quem</a></div>
         <div class="row"><div><b>${faltasMes ? (faltasMes === 1 ? '1 falta ainda sem justificativa' : faltasMes + ' faltas ainda sem justificativa') : 'Nenhuma falta sem justificativa'}</b><div class="sub">até ontem; se houver atestado ou abono, lance na folha da pessoa</div></div><a class="btn ${faltasMes ? '' : 'ghost'} sm" href="#espelho">Ver quem</a></div>
-        ${dia <= 5 && papel !== 'prefeito' ? `<div class="msg info" style="margin:10px 0 0">Até o dia 5: confira a frequência de <b>${mesPassado}</b> (justificativas e batidas sem saída) e envie ao RH.</div>` : ''}
+        ${dia <= 5 && papel !== 'prefeito' ? `<div class="msg info" style="margin:10px 0 0">Até o dia 5: confira a frequência de <b>${mesPassado}</b> (justificativas e batidas sem saída) e envie ao RH.${papel === 'chefe' ? ` <button class="btn sm" data-a="ir-mes-passado" style="margin-left:8px">Conferir e enviar</button>` : ''}</div>` : ''}
       </div>${porSetor}`
   },
 
@@ -851,6 +851,7 @@ const ACOES = {
     if (!confirm('Desistir deste pedido?')) return false
     await q(sb.from('justificativas').delete().eq('id', el.dataset.id)); return ['ok', 'Pedido retirado.']
   },
+  'ir-mes-passado'() { S.mes = addDia(hoje().slice(0, 7) + '-01', -1).slice(0, 7); location.hash = '#espelho'; return false },
   'pres-dia'(el) { S.pdia = el.dataset.id; S.aj = null; return false },
   'ajustar'(el) { S.aj = el.dataset.id; return false },
   'fechar-aj'() { S.aj = null; return false },
