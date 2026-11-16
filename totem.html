@@ -4,54 +4,54 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>SIGEP Totem</title>
-<meta name="theme-color" content="#0d2f73">
+<meta name="theme-color" content="#0f4c5c">
 <link rel="manifest" href="manifest-totem.webmanifest">
 <link rel="icon" href="icone.svg" type="image/svg+xml">
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--g9:#0d2f73;--g7:#1d55b8;--gold:#2db35d;--red:#b3261e;--ink:#142036}
+:root{--g9:#0f4c5c;--g7:#0f6477;--gold:#d9b25f;--red:#b3261e;--ink:#1c2b33;--fonte:"IBM Plex Sans",system-ui,sans-serif}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{background:linear-gradient(160deg,#0d2f73,#1d55b8);color:#fff;font:18px/1.4 Barlow,system-ui,sans-serif;overflow:hidden}
+body{background:#0f4c5c;color:#fff;font:18px/1.45 var(--fonte);font-variant-numeric:tabular-nums;overflow:hidden}
 [hidden]{display:none!important}
-h1,h2{font-family:"Barlow Condensed",Barlow,sans-serif;margin:0}
+h1,h2{font-family:var(--fonte);font-weight:600;letter-spacing:.02em;margin:0}
 .t-tela{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;gap:18px}
-.logo{width:72px;height:72px;border-radius:50%;background:var(--gold);color:var(--g9);display:grid;place-items:center;font:700 26px "Barlow Condensed"}
-h1{font-size:46px}h1 span{color:var(--gold)}
-.sub{color:#cfdcf4}
-.card{background:#fff;color:var(--ink);border-radius:16px;padding:22px;width:min(420px,100%);text-align:left}
-label{display:flex;flex-direction:column;gap:4px;font-size:14px;font-weight:600;color:#5b6680;margin-bottom:12px}
-input{font:17px Barlow,sans-serif;border:1px solid #dbe3ef;border-radius:10px;padding:10px 12px}
-.btn{background:var(--gold);color:var(--g9);border:0;border-radius:14px;padding:16px 40px;font:700 24px "Barlow Condensed";letter-spacing:.04em;cursor:pointer}
-.card .btn{width:100%;font-size:20px;padding:12px}
+.logo{width:84px;height:84px;border-radius:12px;background:#fff url(img/brasao.png) center/contain no-repeat;background-origin:content-box;padding:8px;font-size:0;color:transparent}
+h1{font-size:40px}h1 span{color:var(--gold)}
+.sub{color:#cfe1e5}
+.card{background:#fff;color:var(--ink);border-radius:12px;padding:22px;width:min(420px,100%);text-align:left}
+label{display:flex;flex-direction:column;gap:4px;font-size:14px;font-weight:600;color:#5a6b73;margin-bottom:12px}
+input{font:17px var(--fonte);border:1px solid #dedcd3;border-radius:8px;padding:10px 12px}
+.btn{background:var(--gold);color:#1c2b33;border:0;border-radius:10px;padding:16px 40px;font:600 22px var(--fonte);cursor:pointer}
+.card .btn{width:100%;font-size:18px;padding:12px}
 .aviso{background:#fbefd2;color:#8a5a00;border-radius:12px;padding:12px 16px;max-width:520px;font-weight:600}
 /* câmera */
 #t-camera{display:grid;grid-template-columns:1.1fr 1fr;gap:28px;align-items:center;justify-content:normal;text-align:left;padding:28px}
-.cam{position:relative;aspect-ratio:3/4;max-height:calc(100vh - 56px);border-radius:18px;overflow:hidden;background:#071433;justify-self:center;width:100%}
+.cam{position:relative;aspect-ratio:3/4;max-height:calc(100vh - 56px);border-radius:12px;overflow:hidden;background:#09323d;justify-self:center;width:100%}
 .cam video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
-.cam .alvo{position:absolute;inset:0;margin:auto;width:62%;aspect-ratio:1;height:auto;border:4px solid var(--gold);border-radius:18px;box-shadow:0 0 0 999px #0007}
+.cam .alvo{position:absolute;inset:0;margin:auto;width:62%;aspect-ratio:1;height:auto;border:4px solid var(--gold);border-radius:12px;box-shadow:0 0 0 999px #0007}
 .cam .dica{position:absolute;bottom:14px;left:0;right:0;text-align:center;font-weight:600}
 .lado{display:flex;flex-direction:column;gap:14px}
 .chip{display:inline-flex;align-self:flex-start;background:#ffffff1f;border-radius:99px;padding:5px 13px;font-size:15px}
-#relogio{font:700 110px/1 "Barlow Condensed"}
-#data{font-size:24px;color:#cfdcf4}#data::first-letter{text-transform:uppercase}
-.instrucao{font:700 34px/1.1 "Barlow Condensed"}
+#relogio{font:600 104px/1 var(--fonte);letter-spacing:-.02em}
+#data{font-size:24px;color:#cfe1e5}#data::first-letter{text-transform:uppercase}
+.instrucao{font:600 30px/1.2 var(--fonte)}
 #fila{background:#fbbf24;color:#1f2937;font-weight:700;border-radius:12px;padding:8px 14px}
-#recusadas{background:var(--red);color:#fff;font:700 16px Barlow,sans-serif;border:0;border-radius:12px;padding:10px 14px;text-align:left;cursor:pointer}
+#recusadas{background:var(--red);color:#fff;font:600 16px var(--fonte);border:0;border-radius:12px;padding:10px 14px;text-align:left;cursor:pointer}
 /* resposta da leitura */
 .resposta{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;gap:8px}
 .resposta.ok{background:rgba(21,122,58,.97)}.resposta.erro{background:rgba(179,38,30,.97)}
-#r-icone{font-size:110px;line-height:1}#r-titulo{font:700 56px/1.05 "Barlow Condensed"}#r-sub{font-size:28px;opacity:.95}
+#r-icone{font-size:110px;line-height:1}#r-titulo{font:600 52px/1.1 var(--fonte)}#r-sub{font-size:28px;opacity:.95}
 #sair{position:fixed;right:18px;bottom:14px;background:none;border:0;color:#ffffff55;font-size:26px;cursor:pointer}
 #sair.armado{color:#fff}#sair.armado::before{content:"Toque de novo para desconectar o totem ";font-size:14px;vertical-align:middle}
 @media (max-width:760px),(orientation:portrait){#t-camera{grid-template-columns:1fr;text-align:center}.cam{max-height:55vh;width:auto}.chip{align-self:center}#relogio{font-size:72px}}
 </style>
 </head>
 <body>
-<section class="t-tela" id="t-carregando"><div class="logo">SG</div><p class="sub">Carregando…</p></section>
+<section class="t-tela" id="t-carregando"><div class="logo" role="img" aria-label="Brasão da Prefeitura de Tonantins"></div><p class="sub">Carregando…</p></section>
 
 <section class="t-tela" id="t-login" hidden>
-  <div class="logo">SG</div><h1>SIG<span>EP</span> · Totem</h1>
+  <div class="logo" role="img" aria-label="Brasão da Prefeitura de Tonantins"></div><h1>SIG<span>EP</span> · Totem</h1>
   <form class="card" id="form-login">
     <p style="margin-top:0">Entre com a <b>conta do totem</b> deste setor. É só uma vez: o tablet fica conectado.</p>
     <label>E-mail<input name="email" type="email" required autocomplete="username"></label>
@@ -63,7 +63,7 @@ input{font:17px Barlow,sans-serif;border:1px solid #dbe3ef;border-radius:10px;pa
 </section>
 
 <section class="t-tela" id="t-inicio" hidden>
-  <div class="logo">SG</div><h1 id="inicio-setor"></h1>
+  <div class="logo" role="img" aria-label="Brasão da Prefeitura de Tonantins"></div><h1 id="inicio-setor"></h1>
   <p class="sub">Toque no botão para ligar a câmera e começar a registrar o ponto.</p>
   <p class="aviso" id="erro-camera" role="alert" hidden></p>
   <button class="btn" id="iniciar">Iniciar</button>
@@ -74,7 +74,7 @@ input{font:17px Barlow,sans-serif;border:1px solid #dbe3ef;border-radius:10px;pa
   <div class="lado">
     <span class="chip" id="setor"></span>
     <div id="relogio"></div><div id="data"></div>
-    <div class="instrucao">Aproxime seu crachá do quadrado verde</div>
+    <div class="instrucao">Aproxime seu crachá do quadrado dourado</div>
     <p class="sub">Uma foto pequena é tirada a cada batida, só para o RH conferir se o crachá é seu. Apagada em 90 dias.</p>
     <div id="fila" role="status" hidden></div>
     <button id="recusadas" type="button" role="alert" hidden></button>
