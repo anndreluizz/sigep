@@ -80,7 +80,7 @@ ok(JSON.stringify(run(`S.d.turnos.find(t => t.nome === 'Vespertino')?.dias_seman
 // convite: RH gera, pessoa nova cria conta e entra como chefe da escola
 run(`S.aba = 'acessos'`)
 await form('convite-novo', [['papel', 'chefe'], ['nome', 'Diretor da UBS'], ['setor_id', '10000000-0000-4000-8000-000000000002']])
-const codigo = run('S.convite?.codigo'); ok(codigo?.length === 10, 'gera código de convite')
+const codigo = run('S.convite?.codigo'); ok(codigo?.length === 16, 'gera código de convite')
 run('render()'); ok(tela().includes(codigo), 'código aparece na tela')
 await acao('sair')
 const {data: nova} = await cliente.auth.signUp({email: 'diretor@ubs', password: 'senha-forte-1'})
@@ -218,7 +218,7 @@ ok(msg()?.[1]?.includes('Gerar acesso da secretaria'), 'criou o setor e sugere g
 const novaEsc = run(`S.d.setores.find(s => s.nome === 'E.M. Nova Esperança').id`)
 await acao('acesso-setor', {id: novaEsc})
 const codSec = run('S.convite?.codigo'); run('render()')
-ok(codSec?.length === 10 && tela().includes(codSec) && tela().includes('Acesso da secretaria'), 'código da secretaria aparece em Setores')
+ok(codSec?.length === 16 && tela().includes(codSec) && tela().includes('Acesso da secretaria'), 'código da secretaria aparece em Setores')
 await acao('sair')
 const {data: sec} = await cliente.auth.signUp({email: 'secretaria@novaesperanca', password: 'senha-forte-2'})
 await run('entrou')(sec.session.user); await form('convite', [['codigo', codSec]])
@@ -234,7 +234,7 @@ ok(msg()?.[0] === 'erro', 'secretaria não cadastra em outra escola: ' + msg()?.
 run(`S.aba = 'acessos'; S.edit = null; S.convite = null; render()`)
 ok(tela().includes('Totem (tablet') && !tela().includes('>RH<') && !tela().includes('Quem tem acesso'), 'acessos da secretaria: só servidor e totem')
 await form('convite-novo', [['papel', 'totem'], ['nome', 'Totem – Nova Esperança'], ['setor_id', novaEsc]])
-ok(run('S.convite?.codigo')?.length === 10, 'secretaria gera o convite do totem: ' + msg()?.[1])
+ok(run('S.convite?.codigo')?.length === 16, 'secretaria gera o convite do totem: ' + msg()?.[1])
 
 // ---------- justificativas: servidora pede, chefe decide, espelho muda ----------
 const ANA = '40000000-0000-4000-8000-000000000001', CARLOS = '40000000-0000-4000-8000-000000000002'
