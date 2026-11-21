@@ -904,13 +904,13 @@ const ACOES = {
 // foto da batida (só o RH enxerga; some depois de 90 dias): abre por cima da tela, toque para fechar
 async function verFoto(id) {
   try {
-    const f = (await q(sb.from('batida_fotos').select('foto').eq('batida_id', id)))[0]
+    const f = await q(sb.rpc('ver_foto', {p_batida: id}))   // grava no histórico quem abriu
     const d = document.createElement('div')
     d.style.cssText = 'position:fixed;inset:0;background:#000c;display:grid;place-items:center;z-index:99;color:#fff;text-align:center;padding:16px'
     // a foto vem do totem: vai por propriedade (src), nunca dentro de innerHTML, senão um totem malicioso injeta script no RH
     d.innerHTML = f ? '<div><img alt="Foto da batida" style="max-width:90vw;max-height:80vh;border-radius:8px"><p>Toque para fechar</p></div>'
       : '<p>Sem foto para esta batida (ela é apagada depois de 90 dias, ou o totem não a enviou).<br>Toque para fechar.</p>'
-    if (f) d.querySelector('img').src = f.foto
+    if (f) d.querySelector('img').src = f
     d.onclick = () => d.remove(); document.body.append(d)
   } catch (e) { S.msg = ['erro', e.message]; render() }
 }

@@ -303,17 +303,56 @@ r = await q('select servidor_id from jornadas_anteriores'); ok(r.length === 1 &&
 await como(RH)
 const bTotem = (await q('select id from batidas where totem_id = $1 limit 1', [TOTEM]))[0].id
 const FOTO = 'data:image/jpeg;base64,/9j/AAAA'
+const nFotos = async () => { await db.exec('reset role'); return (await q('select * from batida_fotos')).length }
 await como(TOTEM2); await q('select anexar_foto($1, $2)', [bTotem, FOTO])
-await como(RH); ok((await q('select * from batida_fotos')).length === 0, 'totem não anexa foto em batida de outro totem')
+ok(await nFotos() === 0, 'totem não anexa foto em batida de outro totem')
 await como(TOTEM); await q('select anexar_foto($1, $2)', [bTotem, FOTO]); await q('select anexar_foto($1, $2)', [bTotem, FOTO])
-ok((await q('select * from batida_fotos')).length === 0, 'totem não lê fotos')
+await como(TOTEM); await erro('select * from batida_fotos', [], 'permission denied', 'totem não lê fotos')
 await erro('select anexar_foto($1, $2)', [bTotem, 'data:image/png;base64,AAAA'], 'check', 'só aceita JPEG')
-for (const [quem, nome] of [[CHEFE, 'chefe'], [PREF, 'Prefeito'], [SERV, 'servidor']]) { await como(quem); ok((await q('select * from batida_fotos')).length === 0, `${nome} não vê foto`) }
-await como(RH); ok((await q('select * from batida_fotos')).length === 1, 'RH vê a foto (uma só, reenvio não duplica)')
+for (const [quem, nome] of [[CHEFE, 'chefe'], [PREF, 'Prefeito'], [SERV, 'servidor'], [RH, 'RH (direto na tabela)']]) { await como(quem); await erro('select * from batida_fotos', [], 'permission denied', `${nome} não lê a tabela`) }
+for (const [quem, nome] of [[CHEFE, 'chefe'], [PREF, 'Prefeito'], [SERV, 'servidor'], [TOTEM, 'totem']]) { await como(quem); await erro('select ver_foto($1)', [bTotem], 'Só o RH', `${nome} não abre foto`) }
+await como(null); await erro('select ver_foto($1)', [bTotem], 'permission denied', 'anônimo não abre foto')
+ok(await nFotos() === 1, 'reenvio da foto não duplica')
+await como(RH); ok((await um('select ver_foto($1) f', [bTotem])).f === FOTO, 'RH abre a foto por ver_foto')
+await como(RH); r = await q("select quem, servidor_id from historico where tabela = 'batida_fotos' and acao = 'VIEW'"); ok(r.length === 1 && r[0].quem === RH && r[0].servidor_id === null, 'abrir a foto deixa rastro (quem), sem servidor_id')
+await como(CHEFE); ok((await q("select * from historico where tabela = 'batida_fotos'")).length === 0, 'chefe não vê o rastro de quem abriu foto')
+await como(RH); ok((await um('select ver_foto($1) f', [randomUUID()])).f === null, 'batida sem foto devolve nulo e não grava rastro')
 await db.exec('reset role'); await q(`update batida_fotos set criada_em = now() - interval '91 days'`)
 await como(TOTEM); await q('select anexar_foto($1, $2)', [bTotem, FOTO])
-await como(RH); ok((await q("select * from batida_fotos where criada_em > now() - interval '1 day'")).length === 1, 'foto com mais de 90 dias é apagada no envio seguinte')
+ok(await nFotos() === 1, 'foto com mais de 90 dias é apagada no envio seguinte')
 await como(null); await erro('select anexar_foto($1, $2)', [bTotem, FOTO], 'permission denied', 'anônimo não anexa')
+
+// ---------- auditoria 21/11: a secretaria não reescreve mês já enviado ao RH nem fechado ----------
+await como(RH); await q('delete from meses_enviados'); await q('delete from meses_fechados')
+await q(`update servidores set criado_em = '2026-01-01' where id = $1`, [vera.id])   // ela já existia em agosto
+await como(CHEFE); await q(`insert into meses_enviados (setor_id, mes) values ($1, '2026-08-01')`, [escola.id])
+await como(RH); await q(`update servidores set admissao = '2026-11-01' where id = $1`, [vera.id]); await como(CHEFE)
+await q(`update servidores set admissao = '2026-11-03' where id = $1`, [vera.id])
+ok((await um('select admissao::text a from servidores where id = $1', [vera.id])).a === '2026-11-03', 'chefe muda a admissão dentro de mês aberto')
+await como(RH); await q(`update servidores set admissao = null where id = $1`, [vera.id]); await como(CHEFE)
+await erro(`update servidores set criado_em = '2026-03-01' where id = $1`, [vera.id], 'Só o RH', 'chefe não muda a data de entrada no sistema')
+await erro(`update servidores set admissao = '2026-08-15' where id = $1`, [vera.id], 'já enviado', 'chefe não mexe na admissão que afeta mês enviado')
+await erro(`update servidores set situacao = 'desligado', desligado_em = '2026-08-20' where id = $1`, [vera.id], 'já enviado', 'chefe não desliga com data dentro de mês enviado')
+await q(`update servidores set situacao = 'desligado', desligado_em = '2026-09-10' where id = $1`, [vera.id])
+ok((await um('select situacao from servidores where id = $1', [vera.id])).situacao === 'desligado', 'chefe desliga com data depois do mês enviado')
+await como(RH); await q(`update servidores set situacao = 'ativo', desligado_em = null where id = $1`, [vera.id])
+await q(`update servidores set admissao = '2026-08-15', criado_em = '2026-01-01' where id = $1`, [vera.id])
+ok((await um('select admissao from servidores where id = $1', [vera.id])).admissao !== null, 'RH corrige mês enviado')
+await q(`update servidores set admissao = null where id = $1`, [vera.id])
+await q(`insert into meses_fechados (mes) values ('2026-07-01')`); await q('delete from meses_enviados')
+await como(CHEFE); await erro(`update servidores set admissao = '2026-07-10' where id = $1`, [vera.id], 'já enviado', 'chefe não mexe em mês fechado pelo RH')
+await como(RH); await q('delete from meses_fechados')
+// horário anterior: apagar recalcula o passado, então com mês enviado só o RH apaga
+await db.exec('reset role'); await q(`insert into jornadas_anteriores (servidor_id, ate, turno_id) values ($1, '2026-08-20', $2)`, [vera.id, mat.id])
+await como(CHEFE); await q(`insert into meses_enviados (setor_id, mes) values ($1, '2026-08-01')`, [escola.id])
+await como(CHEFE); await erro(`delete from jornadas_anteriores where servidor_id = $1 and ate = '2026-08-20'`, [vera.id], 'já enviado', 'chefe não apaga horário anterior de mês enviado')
+await como(RH); await q(`delete from jornadas_anteriores where servidor_id = $1 and ate = '2026-08-20'`, [vera.id])
+ok((await q(`select * from jornadas_anteriores where servidor_id = $1 and ate = '2026-08-20'`, [vera.id])).length === 0, 'RH apaga o horário anterior de mês enviado')
+await db.exec('reset role'); await q(`insert into jornadas_anteriores (servidor_id, ate, turno_id) values ($1, '2026-08-20', $2)`, [vera.id, mat.id])
+await como(RH); await q('delete from meses_enviados')
+await como(CHEFE); await q(`delete from jornadas_anteriores where servidor_id = $1 and ate = '2026-08-20'`, [vera.id])
+ok((await q(`select * from jornadas_anteriores where servidor_id = $1 and ate = '2026-08-20'`, [vera.id])).length === 0, 'chefe apaga de novo quando o RH devolve o mês')
+await como(null); await erro('select dados_pessoais()', [], 'permission denied', 'anônimo não enxerga dados_pessoais()')
 
 // desativar acesso
 await como(RH); await q('update perfis set ativo = false where id = $1', [TOTEM])
