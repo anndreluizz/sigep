@@ -367,6 +367,10 @@ await como(RH)
 await q(`insert into servidores (matricula, nome, setor_id, cpf) values ('0994', 'Vinculo Autorizado Pelo RH', $1, '98765432100')`, [escola.id])
 ok((await q(`select id from servidores where matricula = '0994'`)).length === 1, 'RH cadastra CPF que já está em outra unidade')
 
+// auditoria, achado Baixo 10: quem recebeu acesso (histórico de perfis) é assunto do RH, não da chefe nem do servidor
+await como(RH); ok((await q(`select * from historico where tabela = 'perfis'`)).length > 0, 'RH vê o histórico de perfis')
+for (const [quem, nome] of [[CHEFE, 'chefe'], [SERV, 'servidor'], [PREF, 'Prefeito']]) { await como(quem); ok((await q(`select * from historico where tabela = 'perfis'`)).length === 0, `${nome} não vê o histórico de perfis`) }
+
 // desativar acesso
 await como(RH); await q('update perfis set ativo = false where id = $1', [TOTEM])
 await como(TOTEM); await erro('select registrar_batida($1)', [cMarta], 'não está autorizado', 'totem desativado pelo RH para na hora')
