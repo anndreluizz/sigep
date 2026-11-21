@@ -93,5 +93,17 @@ const motivos = fila.recusadas().map(x => x.motivo).join(' | ')
 ok(motivos.includes('outro setor') && motivos.includes('tempo demais'), 'recusadas ficam anotadas com o motivo: ' + motivos)
 fila.limparRecusadas(); ok(fila.recusadas().length === 0, 'aviso dispensado zera a lista')
 
+// relógio do tablet mexido depois da leitura: a idade vem do relógio monotônico, não da hora de parede
+{ const mem2 = {}, arm2 = {getItem: k => mem2[k] ?? null, setItem: (k, v) => { mem2[k] = v }}
+  let rel = Date.now(), mono = 5000
+  const f2 = criarFila(sb, arm2, () => rel, () => mono)
+  await envelhecer()
+  fora = true; r = await f2.bater('DEMO-0105'); ok(r.ok && r.guardada, 'guarda a leitura do relógio monotônico')
+  rel += 3 * 24 * 3600 * 1000; mono += 90 * 1000; fora = false   // alguém adianta 3 dias no tablet; passaram 90 s de verdade
+  await f2.enviar(); ok(f2.pendentes() === 0, 'enviou')
+  const ult = (await banco._db.query('select em from batidas order by em desc limit 1')).rows[0]
+  const idadeGravada = (Date.now() - new Date(ult.em)) / 1000
+  ok(Math.abs(idadeGravada - 90) <= 5, `relógio adiantado não muda a batida (gravada há ${Math.round(idadeGravada)} s, esperado 90)`) }
+
 console.log(`\n${total - falhas}/${total} verificações do totem ok`)
 process.exit(falhas ? 1 : 0)

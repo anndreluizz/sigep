@@ -1,8 +1,10 @@
 // SIGEP · totem: tablet com câmera frontal no setor. Lê o QR do crachá e chama registrar_batida()
 // no banco (que decide entrada/saída e confere setor, situação e o intervalo mínimo).
 // Sem internet: guarda a batida no tablet e envia quando a conexão volta. No envio vai só a IDADE
-// da batida em segundos (medida no tablet); o banco grava a hora dele menos a idade, então um
-// relógio errado no tablet não muda nada.
+// da batida em segundos (medida no tablet); o banco grava a hora dele menos a idade. A idade usa o relógio
+// monotônico (performance.now) enquanto a página não recarregou, então mexer na hora do tablet depois da leitura
+// não muda a batida. ponytail: depois de recarregar a página só resta o relógio de parede (limite do navegador) e o
+// banco ainda aceita idade de até 4 dias sem conferir; marcar/alertar o RH sobre batida offline antiga se virar problema.
 
 /* ============================== fila sem internet ============================== */
 const CHAVE_FILA = 'sigep-fila-totem'
@@ -10,7 +12,8 @@ const CHAVE_RECUSADAS = 'sigep-recusadas-totem'
 const MAXIMO_NA_FILA = 2000
 const TEMPO_LIMITE_MS = 8000
 
-function criarFila(sb, armazenamento, agora = () => Date.now()) {
+function criarFila(sb, armazenamento, agora = () => Date.now(), mono = null) {
+  const sessao = globalThis.crypto?.randomUUID?.() ?? String(Math.random())   // uma por carga da página: o monotônico só vale nela
   const ler = () => { try { return JSON.parse(armazenamento.getItem(CHAVE_FILA)) || [] } catch { return [] } }
   const gravar = f => { try { armazenamento.setItem(CHAVE_FILA, JSON.stringify(f)); return true } catch { return false } }
   let enviando = null   // envio em andamento: quem chamar de novo espera o mesmo
@@ -36,7 +39,7 @@ function criarFila(sb, armazenamento, agora = () => Date.now()) {
   function guardar(codigo, id, foto) {
     const f = ler()
     if (f.length >= MAXIMO_NA_FILA) return false
-    f.push({codigo, lido_em: agora(), id, foto})
+    f.push({codigo, lido_em: agora(), id, foto, ...(mono ? {m: mono(), s: sessao} : {})})
     // sem espaço para a foto (localStorage é pequeno): guarda a batida sem ela
     return gravar(f) || (delete f.at(-1).foto, gravar(f))
   }
@@ -45,7 +48,7 @@ function criarFila(sb, armazenamento, agora = () => Date.now()) {
   function enviar() {
     return enviando ??= (async () => {
       for (let f = ler(); f.length; f = ler()) {
-        const item = f[0], idade = Math.max(0, Math.round((agora() - item.lido_em) / 1000))
+        const item = f[0], idade = Math.max(0, Math.round((mono && item.s === sessao ? mono() - item.m : agora() - item.lido_em) / 1000))
         const {error} = await registrar(item.codigo, idade, item.id ?? null)
         if (error && semRede(error)) break
         // 23505 = "já registrado agora há pouco" (crachá passado duas vezes): não é perda, não avisa
@@ -86,7 +89,7 @@ const CHAVE_PERFIL = 'sigep-totem-perfil'
 
 function iniciarTotem(sb) {
   const $ = s => document.querySelector(s)
-  const fila = criarFila(sb, localStorage)
+  const fila = criarFila(sb, localStorage, () => Date.now(), () => performance.now())
   const video = $('#video'), canvas = document.createElement('canvas'), ctx = canvas.getContext('2d', {willReadFrequently: true})
   let ocupado = false, ultimo = null, ultimoEm = 0, loop = false, audio = null
 
