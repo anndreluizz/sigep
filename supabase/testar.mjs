@@ -354,6 +354,19 @@ await como(CHEFE); await q(`delete from jornadas_anteriores where servidor_id = 
 ok((await q(`select * from jornadas_anteriores where servidor_id = $1 and ate = '2026-08-20'`, [vera.id])).length === 0, 'chefe apaga de novo quando o RH devolve o mês')
 await como(null); await erro('select dados_pessoais()', [], 'permission denied', 'anônimo não enxerga dados_pessoais()')
 
+// ---------- auditoria 21/11, achado 3: CPF que já existe em outra unidade só o RH cadastra ----------
+await como(RH); const obrasCpf = await um(`insert into servidores (matricula, nome, setor_id, cpf) values ('0990', 'Servidor das Obras', $1, '98765432100') returning id`, [obras.id])
+await como(CHEFE)
+await erro(`insert into servidores (matricula, nome, setor_id, cpf) values ('0991', 'Tentativa Cruzada', $1, '98765432100')`, [escola.id], 'Fale com o RH', 'chefe não cadastra CPF que está em outra unidade')
+await q(`insert into servidores (matricula, nome, setor_id, cpf) values ('0992', 'Servidor Novo Da Escola', $1, '11122233344')`, [escola.id])
+ok((await q(`select id from servidores where matricula = '0992'`)).length === 1, 'chefe cadastra CPF novo')
+await q(`insert into servidores (matricula, nome, setor_id, cpf) values ('0993', 'Segundo Vinculo Mesma Escola', $1, '11122233344')`, [escola.id])
+ok((await q(`select id from servidores where matricula = '0993'`)).length === 1, 'chefe cadastra CPF repetido na própria unidade (2º vínculo)')
+await erro(`update servidores set cpf = '98765432100' where matricula = '0992'`, [], 'Fale com o RH', 'chefe não troca o CPF para o de outra unidade')
+await como(RH)
+await q(`insert into servidores (matricula, nome, setor_id, cpf) values ('0994', 'Vinculo Autorizado Pelo RH', $1, '98765432100')`, [escola.id])
+ok((await q(`select id from servidores where matricula = '0994'`)).length === 1, 'RH cadastra CPF que já está em outra unidade')
+
 // desativar acesso
 await como(RH); await q('update perfis set ativo = false where id = $1', [TOTEM])
 await como(TOTEM); await erro('select registrar_batida($1)', [cMarta], 'não está autorizado', 'totem desativado pelo RH para na hora')
